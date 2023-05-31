@@ -2,8 +2,10 @@
 # Computes synthetic spectrum, then compares to observed spectrum
 # and finds parameters that minimze chisq measure
 # 
-# Created 5 Feb 18
+# Created 5 Feb 18 by M. de los Reyes
 # Updated 2 Nov 18
+#
+# edited SMAUG to make general -LEH 5/31/2023
 ###################################################################
 
 #Backend for python3 on mahler
@@ -30,7 +32,7 @@ from make_plots import make_plots
 # Observed spectrum
 class obsSpectrum:
 
-	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
+	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
 
 		# Observed star
 		self.obsfilename 	= obsfilename 	# File with observed spectra
@@ -40,6 +42,7 @@ class obsSpectrum:
 		self.slitmaskname 	= slitmaskname 	# Name of slitmask
 		self.globular 		= globular		# Parameter marking if globular cluster
 		self.lines 			= lines 		# Parameter marking whether or not to use revised or original linelist
+		self.element        = element
 
 		# If observed spectrum comes from moogify file (default), open observed file and continuum normalize as usual
 		if obsspecial is None:
@@ -81,7 +84,7 @@ class obsSpectrum:
 				plt.close()
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
-			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines)
+			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar, self.element, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines)
 
 			if plot:
 				# Plot spliced synthetic spectrum

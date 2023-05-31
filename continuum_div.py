@@ -3,8 +3,9 @@
 # - obtains synthetic spectrum from Ivanna's grid (get_synth); 
 # - divides obs/synth, fits spline, and divides obs/spline (divide_spec)
 # 
-# Created 22 Feb 18
-# Updated 17 Nov 18
+# Created 22 Feb 18 by M. de los Reyes
+# 
+# edited to make SMAUG general -LEH 5/31/2023
 ###################################################################
 
 import os
@@ -101,9 +102,9 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 
 	return synthfluxnew
 
-def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, alpha=None, dlam=None, lines='new', hires=False):
+def mask_obs_for_division(obswvl, obsflux, ivar, element, temp=None, logg=None, fe=None, alpha=None, dlam=None, lines='new', hires=False):
 	"""Make a mask for synthetic and observed spectra.
-	Mask out Mn lines for continuum division.
+	Mask out desired element lines for continuum division.
 	Split spectra into red and blue parts.
 
     Inputs:
@@ -111,6 +112,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, 
     obswvl  -- wavelength array of observed spectrum
     obsflux -- flux array of observed spectrum
     ivar 	-- inverse variance array of observed spectrum
+    element -- element you want the abundances of e.g. 'Sr', 'Mn'
 
     Keywords:
     For synthetic spectrum -- 
@@ -136,6 +138,10 @@ def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, 
 
 	# Get smoothed synthetic spectrum and (NOT continuum-normalized) observed spectrum
 	synthflux = get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=temp, logg=logg, fe=fe, alpha=alpha)
+
+	# Read in file of target lines
+	fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
+	elemlines = fitslines[1].data
 
 	# Make a mask
 	mask = np.zeros(len(synthflux), dtype=bool)
@@ -171,10 +177,10 @@ def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, 
 	# Mask out pixels around Na D doublet (5890, 5896 A)
 	mask[np.where((obswvl > 5884.) & (obswvl < 5904.))] = True
 
-	# Mask out pixels in regions around Mn lines
-	mnmask = np.zeros(len(synthflux), dtype=bool)
+	# Mask out pixels in regions around desired element lines
+	elemmask = np.zeros(len(synthflux), dtype=bool)
 
-	# For med-res spectra, mask out pixels in regions around Mn lines
+	# For med-res spectra, mask out pixels in regions around desired element lines
 	if hires==False:
 		if lines == 'old':
 			lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
@@ -183,9 +189,14 @@ def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, 
 			#+/- 10A regions around Mn lines: lines = np.array([[4729.,4793.],[4813.,4833.],[5400.,5430.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
 			#+/- 5A regions around Mn lines: lines = np.array([[4734.1,4744.1],[4749.0,4770.8],[4778.4,4788.4],[4818.5,4828.5],[5402.3,5412.3],[5415.3,5425.3],[5511.8,5521.8],[5532.7,5542.7],[6008.3,6026.8],[6379.7,6389.7],[6486.7,6496.7]])
 			#+/- 1A regions around Mn lines:
-			lines = np.array([[4738.1,4740.1],[4753.0,4755.0],[4760.5,4763.3],[4764.8,4766.8],[4782.4,4784.4],
-							  [4822.5,4824.5],[5406.3,5408.3],[5419.3,5421.3],[5515.8,5517.8],[5536.7,5538.7],
-							  [6012.3,6014.3],[6015.6,6017.6],[6020.8,6022.8],[6383.7,6385.7],[6490.7,6492.7]])
+			#lines = np.array([[4738.1,4740.1],[4753.0,4755.0],[4760.5,4763.3],[4764.8,4766.8],[4782.4,4784.4],
+							  #[4822.5,4824.5],[5406.3,5408.3],[5419.3,5421.3],[5515.8,5517.8],[5536.7,5538.7],
+							  #[6012.3,6014.3],[6015.6,6017.6],[6020.8,6022.8],[6383.7,6385.7],[6490.7,6492.7]])\
+			lineslist = list()
+			for i in range(len(elemlines[element+'lines'])):
+				gap = [elemlines[element+'lines'][i]-1., elemlines[element+'lines'][i]+1.]
+				lineslist.append(gap)
+			lines = np.array(lineslist)
 
 	# For hi-res spectra, mask out pixels in +/- 1A regions around Mn lines
 	else:
@@ -193,8 +204,8 @@ def mask_obs_for_division(obswvl, obsflux, ivar, temp=None, logg=None, fe=None, 
 						#,[5402.,5412.],[5415.,5425.],[5511.,5521.],[5532.,5542.],[6008.,6026.],[6379.,6389.],[6486.,6596.]])
 
 	for line in range(len(lines)):
-		mnmask[np.where((obswvl > lines[line][0]) & (obswvl < lines[line][1]))] = True
-	mask[mnmask] = True
+		elemmask[np.where((obswvl > lines[line][0]) & (obswvl < lines[line][1]))] = True
+	mask[elemmask] = True
 
 	# Create masked arrays
 	synthfluxmask 	= ma.masked_array(synthflux, mask)
@@ -426,7 +437,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmacli
 
 	return obsflux_norm_final, ivar_norm_final
 
-def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, lines = 'new', hires = False):
+def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines = 'new', hires = False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out bad stuff + EVERYTHING BUT Mn lines (for actual abundance measurements)
 
@@ -436,6 +447,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, lines = 'new',
     obsflux_norm -- flux array of (continuum-normalized!) observed spectrum
     ivar_norm	 -- inverse variance array of (continuum-normalized!) observed spectrum
     dlam 		 -- FWHM array of (continuum-normalized!) observed spectrum
+    element      -- element you want the abundances of ex: 'Sr', 'Mn'
 
 	Synthetic spectrum --
     synthwvl  -- wavelength array of synthetic spectrum
@@ -452,6 +464,10 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, lines = 'new',
     dlammask	  -- (masked!) FWHM array
     skip 		  -- list of lines to NOT skip
     """
+    
+	# Read in file of target lines
+	fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
+	elemlines = fitslines[1].data
 
 	# Make a mask
 	mask = np.zeros(len(obswvl), dtype=bool)
@@ -471,7 +487,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, lines = 'new',
 	# Mask out pixels around Na D doublet (5890, 5896 A)
 	mask[np.where((obswvl > 5884.) & (obswvl < 5904.))] = True
 
-	# Mask out everything EXCEPT Mn lines
+	# Mask out everything EXCEPT desired element lines
 	obsfluxmask = []
 	obswvlmask  = []
 	ivarmask 	= []
@@ -483,9 +499,14 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, lines = 'new',
 	if lines == 'old':
 		lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
 	elif lines == 'new':
-		lines = np.array([[4729.,4793.],[4813.,4833.],[5384.,5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
+		#lines = np.array([[4729.,4793.],[4813.,4833.],[5384.,5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
 		#lines = np.array([[4729.,4749.], [4744.,4764.],[4751.,4772.],[4755.,4776.],[4773.,4793.],
 		#[4813.,4833.],[5384.,5404.],[],[5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
+		lineslist = list()
+		for i in range(len(elemlines[element+'lines'])):
+			gap = [elemlines[element+'lines'][i]-10., elemlines[element+'lines'][i]+10.]
+			lineslist.append(gap)
+		lines = np.array(lineslist)
 
 	for i in range(len(masklist)):
 		for line in range(len(lines)):

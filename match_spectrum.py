@@ -8,6 +8,8 @@
 # 
 # Created 9 Feb 18
 # Updated 22 June 18
+#
+# Edit SMAUG to make general -LEH 5/31/2023
 ###################################################################
 
 import os

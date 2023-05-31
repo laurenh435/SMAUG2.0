@@ -1,10 +1,10 @@
-# output_sr.py
+# output.py
 # Produces nice outputs
 #
-# Created 5 June 18
-# Updated 17 Nov 18
+# Created 5 June 18 by M. de los Reyes
+#
 # Attempting to edit this to run for just one star on my computer -LEH 3/31/23
-# Editing output_mn_edit.py for strontium 5/15/23
+# New copy of this to make general for any element -LEH 5/31/2023
 ###################################################################
 
 #Backend for python3 on mahler
@@ -28,14 +28,15 @@ import scipy.optimize
 import chi_sq
 from make_plots import make_plots
 
-def run_chisq(filename, paramfilename, galaxyname, slitmaskname, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, membercheck=None, memberlist=None, velmemberlist=None):
-	""" Measure Mn abundances from a FITS file.
+def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, membercheck=None, memberlist=None, velmemberlist=None):
+	""" Measure abundances from a FITS file.
 
 	Inputs:
 	filename 		-- file with observed spectra
 	paramfilename 	-- file with parameters of observed spectra
 	galaxyname		-- galaxy name, options: 'scl'
 	slitmaskname 	-- slitmask name, options: 'scl1'
+	element         -- element you want the abundances of ex: 'Sr', 'Mn'
 
 	Keywords:
 	startstar		-- if 0 (default), start at beginning of file and write new datafile;
@@ -63,7 +64,8 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, startstar=0, gl
 	# Open new file
 	if startstar<1:
 		with open(outputname, 'w+') as f:
-			f.write('Name\tRA\tDec\tTemp\tlog(g)\t[Fe/H]\terror([Fe/H])\t[alpha/Fe]\t[Mn/H]\terror([Mn/H])\tchisq(reduced)\n')
+			f.write('Name\tRA\tDec\tTemp\tlog(g)\t[Fe/H]\terror([Fe/H])\t[alpha/Fe]\t['+element+\
+	   '/H]\terror(['+element+'/H])\tchisq(reduced)\n')
 
 	# Prep for member check
 	if membercheck is not None:
@@ -113,7 +115,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, startstar=0, gl
 					continue
 
 			# Run optimization code
-			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], Dec[i], plot=True)
+			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], Dec[i], element, plot=True)
 			best_mn, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
 
 		except Exception as e:
@@ -357,7 +359,7 @@ def main():
     # trying to run for one star in the bscl1 moogify file (sculptor)
 	#run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
 	
-	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
+	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Mn', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
 
 
     
