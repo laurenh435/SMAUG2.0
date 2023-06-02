@@ -36,7 +36,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, starts
 	paramfilename 	-- file with parameters of observed spectra
 	galaxyname		-- galaxy name, options: 'scl'
 	slitmaskname 	-- slitmask name, options: 'scl1'
-	element         -- element you want the abundances of ex: 'Sr', 'Mn'
+	element         -- element you want the abundances of e.g. 'Sr', 'Mn'
 
 	Keywords:
 	startstar		-- if 0 (default), start at beginning of file and write new datafile;

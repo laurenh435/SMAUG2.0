@@ -2,6 +2,7 @@
 # - masks parts of observed spectra (mask_obs);
 # - obtains synthetic spectrum from Ivanna's grid (get_synth); 
 # - divides obs/synth, fits spline, and divides obs/spline (divide_spec)
+# - necessary input: FITS file that just has list of lines for measuring the abundance of 'element'
 # 
 # Created 22 Feb 18 by M. de los Reyes
 # 
@@ -235,11 +236,11 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmacli
 	Do this for blue and red parts of spectra separately, then splice back together.
 
     Inputs:
-    synthfluxmask 	-- smoothed synth spectrum (Mn lines masked out)
-    obsfluxmask		-- obs spectrum (Mn lines masked out)
-    obswvlmask		-- wavelength (Mn lines masked out)
-    ivarmask		-- inverse variance array (Mn lines masked out)
-    mask 			-- mask used to mask stuff (Mn lines, bad pixels) out
+    synthfluxmask 	-- smoothed synth spectrum (desired element lines masked out)
+    obsfluxmask		-- obs spectrum (desired element lines masked out)
+    obswvlmask		-- wavelength (desired element lines masked out)
+    ivarmask		-- inverse variance array (desired element lines masked out)
+    mask 			-- mask used to mask stuff (desired element lines, bad pixels) out
 
     Keywords:
     sigmaclip 		-- if 'True', do sigma clipping while spline-fitting
@@ -447,7 +448,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines
     obsflux_norm -- flux array of (continuum-normalized!) observed spectrum
     ivar_norm	 -- inverse variance array of (continuum-normalized!) observed spectrum
     dlam 		 -- FWHM array of (continuum-normalized!) observed spectrum
-    element      -- element you want the abundances of ex: 'Sr', 'Mn'
+    element      -- element you want the abundances of e.g. 'Sr', 'Mn'
 
 	Synthetic spectrum --
     synthwvl  -- wavelength array of synthetic spectrum

@@ -5,7 +5,8 @@
 # - createPar: for a given *.atm file and linelist, output *.par file
 # - runMoog: runs MOOG for each Mn linelist (calls createPar), splices output spectrum
 #
-# Created 4 Jan 18
+# Created 4 Jan 18 by M. de los Reyes
+# making SMAUG general -LEH 5/31/2023
 ###################################################################
 
 import os
@@ -64,7 +65,7 @@ def createPar(name, atmfile='', linelist='', directory=''):
 	return filestr, wavelengthrange
 
 def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/', elements=None, abunds=None, solar=None, lines='new'):
-	"""Run MOOG for each Mn linelist and splice spectra.
+	"""Run MOOG for each desired element linelist and splice spectra.
 
 	Inputs:
 	temp 	 -- effective temperature (K)
@@ -87,7 +88,7 @@ def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/
 	#print(tempdir)
 	#tempdir = '/mnt/c/Research/SMAUG/temp/' #making a temp folder so I can maybe see what's going on
 
-	# Define list of Mn linelists
+	# Define list of linelists
 	if lines == 'new':
 		linelists = np.array(['Mn47394783_new','Mn4823','Mn54075420_new','Mn55165537','Mn60136021','Mn6384','Mn6491'])
 	elif lines == 'old':
