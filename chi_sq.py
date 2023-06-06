@@ -5,7 +5,7 @@
 # Created 5 Feb 18 by M. de los Reyes
 # Updated 2 Nov 18
 #
-# edited SMAUG to make general -LEH 5/31/2023
+# edited SMAUG to make general -LEH 6/5/2023
 ###################################################################
 
 #Backend for python3 on mahler
@@ -18,6 +18,7 @@ import sys
 import numpy as np
 import math
 from run_moog import runMoog
+from output import specify_element
 from smooth_gauss import smooth_gauss
 from match_spectrum import open_obs_file, smooth_gauss_wrapper
 from continuum_div import get_synth, mask_obs_for_division, divide_spec, mask_obs_for_abundance
@@ -32,7 +33,7 @@ from make_plots import make_plots
 # Observed spectrum
 class obsSpectrum:
 
-	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
+	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, atom_num, linelists, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
 
 		# Observed star
 		self.obsfilename 	= obsfilename 	# File with observed spectra
@@ -43,6 +44,8 @@ class obsSpectrum:
 		self.globular 		= globular		# Parameter marking if globular cluster
 		self.lines 			= lines 		# Parameter marking whether or not to use revised or original linelist
 		self.element        = element       # element you want the abundances of e.g. 'Mn', 'Sr'
+		self.atom_num       = atom_num      # atomic number of the element you want the abundances of
+		self.linelists      = linelists     # list of line list file names for MOOG
 
 		# If observed spectrum comes from moogify file (default), open observed file and continuum normalize as usual
 		if obsspecial is None:
@@ -238,7 +241,7 @@ class obsSpectrum:
 
 		# Compute synthetic spectrum
 		print('Computing synthetic spectrum with parameters: ', elem) #, dlam)
-		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, elements=[25], abunds=[elem], solar=[5.43], lines=self.lines)
+		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists, atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], solar=[5.43], lines=self.lines)
 
 		# Loop over each line
 		synthflux = []
@@ -265,12 +268,11 @@ class obsSpectrum:
 
 		return synthflux
 
-	def minimize_scipy(self, params0, element, output=False, plots=False, hires=False):
+	def minimize_scipy(self, params0, output=False, plots=False, hires=False):
 		"""Minimize residual using scipy.optimize Levenberg-Marquardt.
 
 		Inputs:
-		element you want the abundances of e.g. 'Sr', 'Mn'
-		params0 -- initial guesses for parameters:
+		params0  -- initial guesses for parameters:
 			smoothivar0 -- if applicable, inverse variance to use for smoothing
 
 		Keywords:
@@ -293,9 +295,9 @@ class obsSpectrum:
 
 		# Do some checks
 		if len(np.atleast_1d(best_elem)) == 1:
-			finalsynth = self.synthetic(self.obswvl_final, best_elem, full=True)
+			finalsynth = self.synthetic(self.obswvl_final, best_elem, self.atom_num, self.element, full=True)
 		else:
-			finalsynth = self.synthetic(self.obswvl_final, best_elem[0], best_elem[1], full=True)
+			finalsynth = self.synthetic(self.obswvl_final, best_elem[0], best_elem[1], self.atom_num, self.element, full=True)
 
 		# Output the final data
 		if output:
@@ -303,13 +305,13 @@ class obsSpectrum:
 			if len(np.atleast_1d(best_elem)) == 1:
 				#finalsynthup 	= self.synthetic(self.obswvl_final, best_mn + error, full=True)
 				#finalsynthdown 	= self.synthetic(self.obswvl_final, best_mn - error, full=True)
-				finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + 0.15, full=True)
-				finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - 0.15, full=True)
+				finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + 0.15, self.atom_num, self.element, full=True)
+				finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - 0.15, self.atom_num, self.element, full=True)
 			else:
 				#finalsynthup = self.synthetic(self.obswvl_final, best_mn[0] + error[0], best_mn[1], full=True)
 				#finalsynthdown = self.synthetic(self.obswvl_final, best_mn[0] - error[0], best_mn[1], full=True)
-				finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], full=True)
-				finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], full=True)
+				finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], self.atom_num, self.element, full=True)
+				finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], self.atom_num, self.element, full=True)
 
 			# Create file
 			filename = self.outputname+'/'+self.specname+'_data.csv'
@@ -322,7 +324,7 @@ class obsSpectrum:
 				datawriter = csv.writer(csvfile, delimiter=',')
 
 				# Write header
-				datawriter.writerow(['['+element+'/H]', best_elem[0]])
+				datawriter.writerow(['['+self.element+'/H]', best_elem[0]])
 				if len(np.atleast_1d(best_elem)) > 1:
 					datawriter.writerow(['dlam', best_elem[1]])
 				datawriter.writerow(columnstr)
@@ -340,11 +342,10 @@ class obsSpectrum:
 
 		return best_elem, error
 
-	def plot_chisq(self, params0, element, minimize=True, output=False, plots=False, save=False):
+	def plot_chisq(self, params0, minimize=True, output=False, plots=False, save=False):
 		"""Plot chi-sq as a function of [X/H].
 
 		Inputs:
-		element you want the abundances of e.g. 'Sr', 'Mn'
 		params0 -- initial guesses for parameters:
 			smoothivar0 -- if applicable, inverse variance to use for smoothing
 
@@ -359,7 +360,7 @@ class obsSpectrum:
 		"""
 
 		if minimize:
-			elem_result, elem_error = self.minimize_scipy(params0, element, plots=plots, output=output)
+			elem_result, elem_error = self.minimize_scipy(params0, plots=plots, output=output)
 		else:
 			elem_result = [params0[0]]
 			elem_error  = [params0[1]]
@@ -377,15 +378,15 @@ class obsSpectrum:
 				chisq_list[i] = chisq
 
 			plt.figure()
-			plt.title('Star '+self.specname+' '+element, fontsize=18)
+			plt.title('Star '+self.specname+' '+self.element, fontsize=18)
 			plt.plot(elem_list, chisq_list, '-o')
 			plt.ylabel(r'$\chi^{2}_{red}$', fontsize=16)
-			plt.xlabel('['+element+'Mn/H]', fontsize=16)
+			plt.xlabel('['+self.element+'/H]', fontsize=16)
 			plt.savefig(self.outputname+'/'+self.specname+'_redchisq.png')
 			plt.close()
 
 			if save:
-				np.savetxt(self.outputname+'/'+self.specname+'_redchisq.txt',np.asarray((elem_list - self.fe, chisq_list)).T,header="["+element+"Mn/Fe], redchisq")
+				np.savetxt(self.outputname+'/'+self.specname+'_redchisq.txt',np.asarray((elem_list - self.fe, chisq_list)).T,header="["+self.element+"/Fe], redchisq")
 		else:
 			finalsynth = self.synthetic(self.obswvl_final, elem_list[6]) #, dlam)
 			chisq_list[6] = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * self.ivar_final) / (len(self.obsflux_final) - 1.)

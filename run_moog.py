@@ -64,7 +64,7 @@ def createPar(name, atmfile='', linelist='', directory=''):
 
 	return filestr, wavelengthrange
 
-def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/', elements=None, abunds=None, solar=None, lines='new'):
+def runMoog(temp, logg, fe, alpha, linelists, directory='/mnt/c/Research/SMAUG/moogspectra/', atom_nums=None, elements=None, abunds=None, solar=None, lines='new'):
 	"""Run MOOG for each desired element linelist and splice spectra.
 
 	Inputs:
@@ -74,10 +74,11 @@ def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/
 	alpha 	 -- [alpha/Fe]
 
 	Keywords:
-	dir 	 -- directory to write MOOG output to [default = '/mnt/c/Research/SMAUG/moogspectra/']
-	elements -- list of atomic numbers of elements to add to the *.atm file
-	abunds 	 -- list of elemental abundances corresponding to list of elements
-	lines    -- if 'new', use new revised linelist; else, use original linelist from Judy's code
+	dir 	  -- directory to write MOOG output to [default = '/mnt/c/Research/SMAUG/moogspectra/']
+	atom_nums -- list of atomic numbers of elements to add to the list of atoms
+    elements  -- list of element symbols you want added to the list of atoms e.g. 'mn', 'sr'
+	abunds 	  -- list of elemental abundances corresponding to list of elements
+	lines     -- if 'new', use new revised linelist; else, use original linelist from Judy's code
 
 	Outputs:
 	spectrum -- spliced synthetic spectrum
@@ -89,10 +90,10 @@ def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/
 	#tempdir = '/mnt/c/Research/SMAUG/temp/' #making a temp folder so I can maybe see what's going on
 
 	# Define list of linelists
-	if lines == 'new':
-		linelists = np.array(['Mn47394783_new','Mn4823','Mn54075420_new','Mn55165537','Mn60136021','Mn6384','Mn6491'])
-	elif lines == 'old':
-		linelists = np.array(['linelist_Mn47544762','linelist_Mn4783','linelist_Mn4823','linelist_Mn5394','linelist_Mn5537','linelist_Mn60136021']) 
+	# if lines == 'new':
+	# 	linelists = np.array(['Mn47394783_new','Mn4823','Mn54075420_new','Mn55165537','Mn60136021','Mn6384','Mn6491'])
+	# elif lines == 'old':
+	# 	linelists = np.array(['linelist_Mn47544762','linelist_Mn4783','linelist_Mn4823','linelist_Mn5394','linelist_Mn5537','linelist_Mn60136021']) 
 	
 	spectrum  = []
 
@@ -101,13 +102,12 @@ def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/
 	#print('name:',name)
 
 	# Add the new elements to filename, if any
-	if elements is not None:
+	if atom_nums is not None:
 
-		for i in range(len(elements)):
+		for i in range(len(atom_nums)):
 
 			abund = int(abunds[i]*10)
-			if elements[i] == 25:
-				elementname = 'mn'
+			elementname = elements[i]
 
 			# Note different sign conventions for abundances
 			if abund < 0:
@@ -118,7 +118,7 @@ def runMoog(temp, logg, fe, alpha, directory='/mnt/c/Research/SMAUG/moogspectra/
 			name = name + elementstr
 
 	# Create *.atm file (for use with each linelist)
-	atmfile = writeAtm(temp, logg, fe, alpha, elements=elements, abunds=abunds, solar=solar, dir=tempdir)
+	atmfile = writeAtm(temp, logg, fe, alpha, atom_nums=atom_nums, elements=elements, abunds=abunds, solar=solar, dir=tempdir)
 	#print('atmfile in run_moog:', atmfile)
 	# Loop over all linelists
 	for i in range(len(linelists)):

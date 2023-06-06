@@ -19,6 +19,7 @@ import math
 from run_moog import runMoog
 from match_spectrum import open_obs_file
 from continuum_div import get_synth, mask_obs_for_division, divide_spec, mask_obs_for_abundance
+from make_linelists import split_list
 import subprocess
 from astropy.io import fits, ascii
 from astropy import units as u
@@ -28,7 +29,7 @@ import scipy.optimize
 import chi_sq
 from make_plots import make_plots
 
-def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, membercheck=None, memberlist=None, velmemberlist=None):
+def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_num, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, membercheck=None, memberlist=None, velmemberlist=None):
 	""" Measure abundances from a FITS file.
 
 	Inputs:
@@ -37,6 +38,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, starts
 	galaxyname		-- galaxy name, options: 'scl'
 	slitmaskname 	-- slitmask name, options: 'scl1'
 	element         -- element you want the abundances of e.g. 'Sr', 'Mn'
+	atom_num        -- atomic number of the element you want the abundance of
 
 	Keywords:
 	startstar		-- if 0 (default), start at beginning of file and write new datafile;
@@ -92,6 +94,9 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, starts
 	# Get coordinates of stars in file
 	RA, Dec = open_obs_file(filename, coords=True)
 
+	# Make line lists for the element of interest
+	linelists = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element)
+
 	# Run chi-sq fitting for all stars in file
 	for i in range(startstar, 1): #ended at Nstars
 
@@ -115,7 +120,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, starts
 					continue
 
 			# Run optimization code
-			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], Dec[i], element, plot=True)
+			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], Dec[i], element, atom_num, linelists, plot=True)
 			best_mn, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
 
 		except Exception as e:
@@ -297,69 +302,7 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 	return
 
 def main():
-	# Match Sculptor hi-res file to bscl1 (for AAS)
-	#medresMn, medresMnerror, hiresMn, hiresMnerror, sep.arcsec = match_hires('Sculptor_hires.tsv','/raid/caltech/moogify/bscl1/moogify.fits.gz')
-
-	# Measure Mn abundances for Sculptor
-	#run_chisq('/raid/caltech/moogify/bscl1/moogify.fits.gz', '/raid/gduggan/moogify/bscl1_moogify.fits.gz', 'scl', 'scl1', startstar=36, lines='new', plots=True)
-	#run_chisq('/raid/caltech/moogify/bscl2/moogify.fits.gz', '/raid/gduggan/moogify/bscl2_moogify.fits.gz', 'scl', 'scl2', startstar=0, lines='new', plots=True)
-	#run_chisq('/raid/caltech/moogify/bscl6/moogify.fits.gz', '/raid/gduggan/moogify/bscl6_moogify.fits.gz', 'scl', 'scl6', startstar=0, lines='new', plots=True)
-
-	# Measure Mn abundances for Sculptor using new 1200B data
-	#run_chisq('/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', '/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', 'scl', 'bscl5_1200B', startstar=2, lines='new', plots=True, wvlcorr=False)
-	#plot_fits_postfacto('/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', '/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', 'scl', 'bscl5_1200B', startstar=66, globular=False, lines='new')
-	#make_chisq_plots('/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', '/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', 'scl', 'bscl5_1200B', startstar=66, globular=False)
-	'''
-	# Measure Mn abundances for Ursa Minor
-	run_chisq('/raid/caltech/moogify/bumi1/moogify.fits.gz', '/raid/gduggan/moogify/bumi1_moogify.fits.gz', 'umi', 'umi1', startstar=0)
-	run_chisq('/raid/caltech/moogify/bumi2/moogify.fits.gz', '/raid/gduggan/moogify/bumi2_moogify.fits.gz', 'umi', 'umi2', startstar=0)
-	run_chisq('/raid/caltech/moogify/bumi3/moogify.fits.gz', '/raid/gduggan/moogify/bumi3_moogify.fits.gz', 'umi', 'umi3', startstar=0)
-
-	# Measure Mn abundances for Draco
-	run_chisq('/raid/caltech/moogify/bdra1/moogify.fits.gz', '/raid/gduggan/moogify/bdra1_moogify.fits.gz', 'dra', 'dra1', startstar=0)
-	run_chisq('/raid/caltech/moogify/bdra2/moogify.fits.gz', '/raid/gduggan/moogify/bdra2_moogify.fits.gz', 'dra', 'dra2', startstar=0)
-	run_chisq('/raid/caltech/moogify/bdra3/moogify.fits.gz', '/raid/gduggan/moogify/bdra3_moogify.fits.gz', 'dra', 'dra3', startstar=0)
-
-	# Measure Mn abundances for Sextans
-	run_chisq('/raid/caltech/moogify/bsex2/moogify.fits.gz', '/raid/gduggan/moogify/bsex2_moogify.fits.gz', 'sex', 'sex2', startstar=0)
-	run_chisq('/raid/caltech/moogify/bsex3/moogify.fits.gz', '/raid/gduggan/moogify/bsex3_moogify.fits.gz', 'sex', 'sex3', startstar=0)
-
-	# Measure Mn abundances for Fornax
-	run_chisq('/raid/caltech/moogify/bfor6/moogify.fits.gz', '/raid/gduggan/moogify/bfor6_moogify.fits.gz', 'for', 'for6', startstar=0)
-	'''
-
-	# Measure Mn abundances for Fornax using new 1200B data
-	#run_chisq('/raid/caltech/moogify/bfor7_1200B/moogify.fits.gz', '/raid/caltech/moogify/bfor7_1200B/moogify.fits.gz', 'for', 'for7_1200B', startstar=0, lines='new')
-
-	# Measure Mn abundances for globular clusters
-	#run_chisq('/raid/caltech/moogify/n2419b_blue/moogify.fits.gz', '/raid/gduggan/moogify/n2419b_blue_moogify.fits.gz', 'n2419', 'n2419b_blue', startstar=0, globular=True, lines='new')
-	#run_chisq('/raid/caltech/moogify/7089l3_1200B/moogify.fits.gz', '/raid/caltech/moogify/7089l3/moogify7_flexteff.fits.gz', 'n7089', '7089l3_1200B', startstar=0, globular=True, lines='new', plots=True, wvlcorr=False, membercheck='M2', memberlist='/raid/caltech/articles/kirby_gclithium/table_catalog.dat')
-	#run_chisq('/raid/caltech/moogify/ng1904_1200B/moogify.fits.gz', '/raid/caltech/moogify/ng1904_1200B/moogify.fits.gz', 'n1904', 'ng1904_1200B', startstar=0, globular=True, lines='new', plots=True, wvlcorr=False)
-	#run_chisq('/raid/caltech/moogify/7089l1_1200B/moogify.fits.gz', '/raid/caltech/moogify/7089l1_1200B/moogify.fits.gz', 'n7089', '7089l1_1200B', startstar=0, globular=True, lines='new', plots=True, wvlcorr=False, membercheck='M2', memberlist='/raid/caltech/articles/kirby_gclithium/table_catalog.dat', velmemberlist='/raid/madlr/glob/n7089/7089l1_1200B_velmembers.txt')
-	#run_chisq('/raid/caltech/moogify/7078l1_1200B/moogify.fits.gz', '/raid/caltech/moogify/7078l1_1200B/moogify.fits.gz', 'n7078', '7078l1_1200B', startstar=0, globular=True, lines='new', plots=True, wvlcorr=False, membercheck='M15', memberlist='/raid/caltech/articles/kirby_gclithium/table_catalog.dat', velmemberlist='/raid/madlr/glob/n7078/7078l1_1200B_velmembers.txt')
-	#run_chisq('/raid/caltech/moogify/n5024b_1200B/moogify.fits.gz', '/raid/caltech/moogify/n5024b_1200B/moogify.fits.gz', 'n5024', 'n5024b_1200B', startstar=0, globular=True, lines='new', plots=True, wvlcorr=False, membercheck='M53', memberlist='/raid/caltech/articles/kirby_gclithium/table_catalog.dat', velmemberlist='/raid/madlr/glob/n5024/n5024b_1200B_velmembers.txt')
-	
-	# Measure Mn abundances for Ursa Minor
-	#run_chisq('/raid/caltech/moogify/bumia_1200B/moogify.fits.gz', '/raid/caltech/moogify/bumia_1200B/moogify.fits.gz', 'umi', 'bumia_1200B', startstar=16, globular=False, lines='new', plots=True, wvlcorr=False)
-
-	#plot_fits_postfacto('/raid/caltech/moogify/7089l1_1200B/moogify.fits.gz', '/raid/caltech/moogify/7089l1/moogify7_flexteff.fits.gz', 'n7089', '7089l1_1200B', startstar=0, globular=True, lines='new', mn_cluster=-1.66)
-	#plot_fits_postfacto('/raid/caltech/moogify/7089l3_1200B/moogify.fits.gz', '/raid/caltech/moogify/7089l3/moogify7_flexteff.fits.gz', 'n7089', '7089l3_1200B', startstar=0, globular=True, lines='new', mn_cluster=-1.66)
-	#plot_fits_postfacto('/raid/caltech/moogify/7078l1_1200B/moogify.fits.gz', '/raid/caltech/moogify/7078l1_1200B/moogify.fits.gz', 'n7078', '7078l1_1200B', startstar=0, globular=True, lines='new', mn_cluster=-2.57)
-	#plot_fits_postfacto('/raid/caltech/moogify/n5024b_1200B/moogify.fits.gz', '/raid/caltech/moogify/n5024b_1200B/moogify.fits.gz', 'n5024', 'n5024b_1200B', startstar=0, globular=True, lines='new', mn_cluster=-2.24)
-
-	# Plot chi-sq contours for stars that already have [Mn/H] measured
-	#make_chisq_plots('/raid/caltech/moogify/n2419b_blue/moogify.fits.gz', '/raid/gduggan/moogify/n2419b_blue_moogify.fits.gz', 'n2419b_blue', 'n2419b_blue', startstar=11, globular=True)
-
-	# Measure Mn abundances for new (Apr 2021) data
-	#run_chisq('/raid/caltech/moogify/sex10_1200B/moogify.fits.gz', '/raid/caltech/moogify/sex10_1200B/moogify.fits.gz', 'sex', 'sex10_1200B', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
-	#run_chisq('/raid/caltech/moogify/dra10_1200B/moogify.fits.gz', '/raid/caltech/moogify/dra10_1200B/moogify.fits.gz', 'dra', 'dra10_1200B', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
-	#run_chisq('/raid/caltech/moogify/CVnIa_1200B/moogify.fits.gz', '/raid/caltech/moogify/CVnIa_1200B/moogify.fits.gz', 'cvni', 'CVnIa_1200B', startstar=99, globular=False, lines='new', plots=True, wvlcorr=True)
-	#run_chisq('/raid/caltech/moogify/bumia_1200B/moogify.fits.gz', '/raid/caltech/moogify/bumia_1200B/moogify.fits.gz', 'umi', 'bumia_1200B', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
-	
-    # trying to run for one star in the bscl1 moogify file (sculptor)
-	#run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
-	
-	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Mn', startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
+	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Mn', atom_num=25, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
 
 
     

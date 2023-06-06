@@ -12,7 +12,8 @@
 #				interpolate from ATLAS9 grid7 and output atmosphere
 # - writeAtm: given atmosphere, put contents into a *.atm file
 # 
-# Created 2 Nov 17
+# Created 2 Nov 17 by M. de los Reyes
+# edited to make general 6/5/2023 -LEH
 ###################################################################
 
 import os
@@ -349,7 +350,7 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 
 	return flux
 
-def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', elements=None, abunds=None, solar=None):
+def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None):
 	"""Create *.atm file
 
     Inputs:
@@ -359,10 +360,11 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', elements=N
     alpha 	 -- [alpha/Fe]
 
     Keywords:
-    dir 	 -- directory to write atmospheres to [default = '/raid/madlr']
-    elements -- list of atomic numbers of elements to add to the list of atoms
-    abunds 	 -- list of elemental abundances corresponding to list of elements
-    solar 	 -- solar abundances corresponding to list of elements
+    dir 	  -- directory to write atmospheres to [default = '/raid/madlr']
+    atom_nums -- list of atomic numbers of elements to add to the list of atoms
+    elements  -- list of element symbols you want added to the list of atoms e.g. 'mn', 'sr'
+    abunds 	  -- list of elemental abundances corresponding to list of elements
+    solar 	  -- solar abundances corresponding to list of elements
     """
 
 	# Atmosphere to write
@@ -404,30 +406,29 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', elements=N
 					'\n      22      ' + ('%5.2f' % float(4.95 + fe + alpha)) )
 
 		# If not adding any elements, use default NATOMS footer
-		if elements is None:
+		if atom_nums is None:
 			natoms = 6
 			atomstxt = str( ('%.3E' % microturbvel) +
 					'\nNATOMS    ' + str(natoms) + '   ' + ('%5.2f' % float(fe)) + alphatxt)
 
 		# If adding elements, first make sure that number of elements matches number of abundances
-		elif len(elements) != len(abunds):
+		elif len(atom_nums) != len(abunds):
 			print('Error: length of element array doesn\'t match length of abundances array')
 			raise
 
 		else:
-			natoms = 6 + len(elements)
+			natoms = 6 + len(atom_nums)
 			atomstxt = str( ('%.3E' % microturbvel) +
 					'\nNATOMS    ' + str(natoms) + '   ' + ('%5.2f' % float(fe)) + alphatxt)
 
 			# Add the new elements
-			for i in range(len(elements)):
+			for i in range(len(atom_nums)):
 				atomstxt = str( atomstxt + 
-					'\n      '+str(elements[i])+'      ' + ('%5.2f' % float(abunds[i] + solar[i])) )
+					'\n      '+str(atom_nums[i])+'      ' + ('%5.2f' % float(abunds[i] + solar[i])) )
 
 				# Also add new elements to filename
 				abund = int(abunds[i]*10)
-				if elements[i] == 25:
-					elementname = 'mn'
+				elementname = elements[i]
 
 				# Note different sign conventions for abundances
 				if abund < 0:
