@@ -15,6 +15,7 @@ import glob
 import numpy as np
 import math
 from interp_atmosphere import checkFile, getAtm, writeAtm
+from isotopes import isotope_ratio
 import subprocess
 import pandas
 import tempfile
@@ -26,6 +27,9 @@ def createPar(name, atmfile='', linelist='', directory=''):
 	# Open linelist and get wavelength range to synthesize spectrum
 	wavelengths = np.genfromtxt(linelist, skip_header=1, usecols=0)
 	wavelengthrange = [ math.floor(wavelengths[0]),math.ceil(wavelengths[-1]) ]
+
+	# Get ratios of isotopes of element of interest
+	isotope_reciprocals = isotope_ratio(38,0.8)
 
 	# Define filename
 	filestr = directory + name + '.par' #took out slash between directory and name
