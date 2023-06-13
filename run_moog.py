@@ -21,10 +21,11 @@ import pandas
 import tempfile
 import shutil
 	
-def createPar(name, atom_nums, atmfile='', linelist='', directory=''):
+def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 	"""Create *.par file using *.atm file and linelist."""
 
 	# Open linelist and get wavelength range to synthesize spectrum
+	#print('create par linelist:',linelist)
 	wavelengths = np.genfromtxt(linelist, skip_header=1, usecols=0)
 	wavelengthrange = [ math.floor(wavelengths[0]),math.ceil(wavelengths[-1]) ]
 	#print('wavelength range:',wavelengthrange)
@@ -64,6 +65,7 @@ def createPar(name, atom_nums, atmfile='', linelist='', directory=''):
 			file.write('synlimits'+'\n')
 			file.write('  '+'{0:.3f}'.format(wavelengthrange[0])+' '+'{0:.3f}'.format(wavelengthrange[1])+'  0.02  1.00'+'\n')
 			# Get ratios of isotopes of element of interest: 2nd entry to isotope_ratio is fraction of the element created by s-process
+			# Make this so that isotope ratios of Ba, La, Nd, Eu, CH are built in (for running with line lists based on full_lines_sprocess)
 			# if atom_nums[0] > 30:
 			# 	isotope_reciprocals, isotopes = isotope_ratio(atom_nums[0],0.8) #right now, the element of interest must be the first element in the atom_nums list
 			# 	file.write('isotopes      '+str(len(isotopes))+'    1'+'\n')
@@ -73,7 +75,7 @@ def createPar(name, atom_nums, atmfile='', linelist='', directory=''):
 	
 	return filestr, wavelengthrange
 
-def runMoog(temp, logg, fe, alpha, linelists, directory='/mnt/c/Research/Sr-SMAUG/output/', atom_nums=None, elements=None, abunds=None, solar=None, lines='new'):
+def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/Sr-SMAUG/output/', atom_nums=None, elements=None, abunds=None, solar=None, lines='new'):
 	"""Run MOOG for each desired element linelist and splice spectra.
 
 	Inputs:
@@ -94,8 +96,8 @@ def runMoog(temp, logg, fe, alpha, linelists, directory='/mnt/c/Research/Sr-SMAU
 	"""
 
 	# Define temporary directory to store tempfiles
-	#tempdir = tempfile.mkdtemp() + '/'
-	tempdir = '/mnt/c/Research/Sr-SMAUG/temp/' #making a temp folder so I can see what's going on
+	tempdir = tempfile.mkdtemp() + '/'
+	#tempdir = '/mnt/c/Research/Sr-SMAUG/temp/' #making a temp folder so I can see what's going on
 
 	# Define list of linelists
 	# if lines == 'new':
@@ -124,17 +126,18 @@ def runMoog(temp, logg, fe, alpha, linelists, directory='/mnt/c/Research/Sr-SMAU
 				elementstr	= elementname + '_' + '{:02}'.format(abund)
 
 			name = name + elementstr
+	#print('name:',name)
 
 	# Create *.atm file (for use with each linelist)
 	atmfile = writeAtm(temp, logg, fe, alpha, atom_nums=atom_nums, elements=elements, abunds=abunds, solar=solar, dir=tempdir)
 	#print('atmfile in run_moog:', atmfile)
 	# Loop over all linelists
-	for i in range(len(linelists)):
+	for i in skip:
 
 		# Create *.par file
 		parname = name + '_' + linelists[i][-8:-4]
 		#print('parname:', parname)
-		parfile, wavelengthrange = createPar(parname, atom_nums, atmfile, linelists[i], directory=tempdir)
+		parfile, wavelengthrange = createPar(parname, atom_nums, logg, atmfile, linelists[i], directory=tempdir)
 		#print('parfile:', parfile)
 
 

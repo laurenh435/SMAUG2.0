@@ -169,6 +169,6 @@ def read_file(filepath, header=False):
 
 if __name__ == "__main__":
     #Sr:38, Mn:25
-    #combine_lines([38], 'sr')
-    split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_mn.txt', 25, 'Mn')
+    combine_lines([38], 'sr')
+    #split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_mn.txt', 25, 'Mn')
 

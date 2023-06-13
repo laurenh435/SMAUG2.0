@@ -255,19 +255,19 @@ class obsSpectrum:
 
 		# Compute synthetic spectrum
 		print('Computing synthetic spectrum with parameters: ', elem) #, dlam)
-		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists,\
+		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists, skip=self.skip,\
 		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], solar=[5.43], lines=self.lines)
 		# Loop over each line
 		synthflux = []
-		for i in self.skip:
+		for i in range(len(self.skip)):
 
 			synthregion = synth[i]
-			#print(len(synthregion), len(self.obswvl_fit[i]),len(self.obsflux_fit[i]),len(self.ivar_fit[i]), len(self.dlam_fit[i]))
+			#print(len(synthregion), len(self.obswvl_fit[self.skip[i]]),len(self.obsflux_fit[self.skip[i]]),len(self.ivar_fit[self.skip[i]]), len(self.dlam_fit[self.skip[i]]))
 
 			# Smooth each region of synthetic spectrum to match each region of continuum-normalized observed spectrum
 
 			# uncomment this if dlam is not a fitting parameter
-			newsynth = get_synth(self.obswvl_fit[i], self.obsflux_fit[i], self.ivar_fit[i], self.dlam_fit[i], synth=synthregion)
+			newsynth = get_synth(self.obswvl_fit[self.skip[i]], self.obsflux_fit[self.skip[i]], self.ivar_fit[self.skip[i]], self.dlam_fit[self.skip[i]], synth=synthregion)
 
 			# uncomment this if dlam is a fitting parameter
 			#newsynth = get_synth(self.obswvl_fit[i], self.obsflux_fit[i], self.ivar_fit[i], dlam, synth=synthregion)

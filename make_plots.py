@@ -46,13 +46,16 @@ def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname
 
 	# Define lines to plot
 	newlinelist = []
-	for i in skip:
-		newlinelist.append(linelist[i])
+	for j in skip:
+		newlinelist.append(linelist[j])
 	if lines == 'new':
 		linewidth = np.ones(len(newlinelist)) #sets width of green overlay
 
 		nrows = 2
-		ncols = int(len(newlinelist)/2)
+		if len(newlinelist) == 1:
+			ncols = 1
+		else:
+			ncols = int(len(newlinelist)/2)
 		figsize = (32,15)
 		#figsize = (40,15)
 		#figsize = (20,12)
@@ -99,6 +102,7 @@ def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname
 		#if hires == False:
 		lolim = newlinelist[i] - 10
 		uplim = newlinelist[i] + 10
+		#print(lolim, uplim)
 		#else:
 		#	lolim = linelist[i] - 5
 		#	uplim = linelist[i] + 5
@@ -128,7 +132,8 @@ def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname
 
 					# Plot synthetic spectrum
 					if (synthfluxup is not None) and (synthfluxdown is not None):
-						plt.fill_between(obswvl[mask], synthfluxup[mask], synthfluxdown[mask], facecolor='red', edgecolor='red', alpha=0.75, linewidth=0.5, label='Synthetic', zorder=2)
+						plt.fill_between(obswvl[mask], synthfluxup[mask], synthfluxdown[mask], facecolor='red', edgecolor='red', alpha=0.75, linewidth=0.5,\
+		                                   label='Synthetic', zorder=2)
 					else:
 						plt.plot(obswvl[mask], synthflux[mask], color='r', alpha=0.5, linestyle='-', linewidth=2, label='Synthetic', zorder=100)
 
