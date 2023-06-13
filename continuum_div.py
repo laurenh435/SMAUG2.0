@@ -78,9 +78,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 	else:
 		synthflux = synth[0]
 		synthwvl  = synth[1]
-
-	#print(synthwvl, obswvl)
-
+	
 	# Clip synthetic spectrum so it's within range of obs spectrum
 	mask = np.where((synthwvl > obswvl[0]) & (synthwvl < obswvl[-1]))
 	synthwvl = synthwvl[mask]
@@ -103,7 +101,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 
 	return synthfluxnew
 
-def mask_obs_for_division(obswvl, obsflux, ivar, element, temp=None, logg=None, fe=None, alpha=None, dlam=None, lines='new', hires=False):
+def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, logg=None, fe=None, alpha=None, dlam=None, lines='new', hires=False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out desired element lines for continuum division.
 	Split spectra into red and blue parts.
@@ -141,8 +139,8 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, temp=None, logg=None, 
 	synthflux = get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=temp, logg=logg, fe=fe, alpha=alpha)
 
 	# Read in file of target lines
-	fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
-	elemlines = fitslines[1].data
+	#fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
+	#elemlines = fitslines[1].data
 
 	# Make a mask
 	mask = np.zeros(len(synthflux), dtype=bool)
@@ -190,14 +188,11 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, temp=None, logg=None, 
 			#+/- 10A regions around Mn lines: lines = np.array([[4729.,4793.],[4813.,4833.],[5400.,5430.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
 			#+/- 5A regions around Mn lines: lines = np.array([[4734.1,4744.1],[4749.0,4770.8],[4778.4,4788.4],[4818.5,4828.5],[5402.3,5412.3],[5415.3,5425.3],[5511.8,5521.8],[5532.7,5542.7],[6008.3,6026.8],[6379.7,6389.7],[6486.7,6496.7]])
 			#+/- 1A regions around Mn lines:
-			#lines = np.array([[4738.1,4740.1],[4753.0,4755.0],[4760.5,4763.3],[4764.8,4766.8],[4782.4,4784.4],
-							  #[4822.5,4824.5],[5406.3,5408.3],[5419.3,5421.3],[5515.8,5517.8],[5536.7,5538.7],
-							  #[6012.3,6014.3],[6015.6,6017.6],[6020.8,6022.8],[6383.7,6385.7],[6490.7,6492.7]])\
-			lineslist = list()
-			for i in range(len(elemlines[element+'lines'])):
-				gap = [elemlines[element+'lines'][i]-1., elemlines[element+'lines'][i]+1.]
-				lineslist.append(gap)
-			lines = np.array(lineslist)
+			# lineslist = list()
+			# for i in range(len(elemlines[element+'lines'])):
+			# 	gap = [elemlines[element+'lines'][i]-1., elemlines[element+'lines'][i]+1.]
+			# 	lineslist.append(gap)
+			lines = np.array(linegaps)
 
 	# For hi-res spectra, mask out pixels in +/- 1A regions around Mn lines
 	else:
@@ -224,7 +219,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, temp=None, logg=None, 
 
 	return synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask
 
-def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmaclip=False, specname=None, outputname=None, hires=False):
+def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element, sigmaclip=False, specname=None, outputname=None, hires=False):
 	"""Do the actual continuum fitting:
 	- Divide obs/synth.
 	- Fit spline to quotient. 
@@ -438,7 +433,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmacli
 
 	return obsflux_norm_final, ivar_norm_final
 
-def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines = 'new', hires = False):
+def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, linegaps, lines = 'new', hires = False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out bad stuff + EVERYTHING BUT Mn lines (for actual abundance measurements)
 
@@ -467,8 +462,8 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines
     """
     
 	# Read in file of target lines
-	fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
-	elemlines = fitslines[1].data
+	#fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
+	#elemlines = fitslines[1].data
 
 	# Make a mask
 	mask = np.zeros(len(obswvl), dtype=bool)
@@ -500,14 +495,12 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines
 	if lines == 'old':
 		lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
 	elif lines == 'new':
-		#lines = np.array([[4729.,4793.],[4813.,4833.],[5384.,5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
-		#lines = np.array([[4729.,4749.], [4744.,4764.],[4751.,4772.],[4755.,4776.],[4773.,4793.],
-		#[4813.,4833.],[5384.,5404.],[],[5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
-		lineslist = list()
-		for i in range(len(elemlines[element+'lines'])):
-			gap = [elemlines[element+'lines'][i]-10., elemlines[element+'lines'][i]+10.]
-			lineslist.append(gap)
-		lines = np.array(lineslist)
+
+		# lineslist = list()
+		# for i in range(len(elemlines[element+'lines'])):
+		# 	gap = [elemlines[element+'lines'][i]-10., elemlines[element+'lines'][i]+10.]
+		# 	lineslist.append(gap)
+		lines = np.array(linegaps)
 
 	for i in range(len(masklist)):
 		for line in range(len(lines)):
@@ -526,5 +519,24 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lines
 		# Skip spectral regions that are outside the observed wavelength range (with bad pixels masked out)
 		if (lines[line][0] < obswvl[~mask][0]) or (lines[line][1] > obswvl[~mask][-1]):
 			skip = np.delete(skip, np.where(skip==line))
+		
+		# Skip lines that are at edges of spectrum where things go crazy
+		blue_cutoff = obswvl[np.where(obsflux_norm[0:2000] < 0)][-1]
+		red_cutoff = obswvl[np.where(obsflux_norm[-2000:-1] < 0)][-1]
+		if lines[line][0] > blue_cutoff and lines[line][1] < red_cutoff:
+			continue
+		else:
+			skip = np.delete(skip, np.where(skip==line))			
+					
+
+		# 	badspots_red = np.where(self.obsflux_norm[-2000:-1] < 0)
+		# 	red_cutoff = self.obswvl[badspots_red][-1]
+		# 	print(self.linelists)
+		# 	self.newlinelists = []
+		# 	for i in range(len(self.elementlines)):
+		# 		if self.elementlines[i] > blue_cutoff and self.elementlines[i] < red_cutoff:
+		# 			self.newlinelists.append(self.linelists[i])
+		# 		else:
+		# 			continue
 
 	return np.asarray(obsfluxmask, dtype=object), np.asarray(obswvlmask, dtype=object), np.asarray(ivarmask, dtype=object), np.asarray(dlammask, dtype=object), np.asarray(skip)

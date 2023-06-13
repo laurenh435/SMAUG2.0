@@ -3,6 +3,8 @@
 # 
 # Created 9 Nov 18
 # Updated 9 Nov 18
+#
+# Edited to make general 6/9/2023 -LEH
 ###################################################################
 
 #Backend for python3 on mahler
@@ -16,24 +18,26 @@ import numpy as np
 import math
 
 # Code to make plots
-def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=True, ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthflux_nomn=None, synthflux_cluster=None, savechisq=None, hires=False):
+def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthflux_no_elem=None, synthflux_cluster=None, savechisq=None, hires=False):
 	"""Make plots.
 
 	Inputs:
 	lines -- which linelist to use? Options: 'new', 'old'
+	linelist -- list of the synthesized lines of the element of interest
 	specname -- name of star
 	obswvl 	-- observed wavelength array
 	obsflux -- observed flux
 	synthflux 	-- synthetic flux
 	outputname 	-- where to output file
+	element -- string of element of interest e.g. 'Mn', 'Sr'
 
 	Keywords:
 	resids  -- plot residuals if 'True' (default); else, don't plot residuals
 	ivar 	-- inverse variance; if 'None' (default), don't plot errorbars
 	title 	-- plot title; if 'None' (default), then plot title = "Star + ID"
-	synthfluxup & synthfluxdown -- if not 'None' (default), then plot synthetic spectrum as region between [Mn/H]_best +/- 0.3dex
-	synthflux_nomn 		-- if not 'None' (default), then plot synthetic spectrum with [Mn/H] = -10.0
-	synthflux_cluster 	-- if not 'None' (default), then plot synthetic spectrum with mean [Mn/H] of cluster; in format synthflux_cluster = [mean [Mn/H], spectrum]
+	synthfluxup & synthfluxdown -- if not 'None' (default), then plot synthetic spectrum as region between [X/H]_best +/- 0.3dex
+	synthflux_no_elem	-- if not 'None' (default), then plot synthetic spectrum with [X/H] = -10.0
+	synthflux_cluster 	-- if not 'None' (default), then plot synthetic spectrum with mean [X/H] of cluster; in format synthflux_cluster = [mean [X/H], spectrum]
 	savechisq 	-- if not 'None' (default), compute & save reduced chi-sq for each line in output file with path savechisq
 	hires 	-- if 'False', plot as normal; else, zoom in a bit to show hi-res spectra
 
@@ -41,25 +45,14 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 	"""
 
 	# Define lines to plot
+	newlinelist = []
+	for i in skip:
+		newlinelist.append(linelist[i])
 	if lines == 'new':
-		#linelist = np.array([4739.,4754.,4761.5,4765.5,4783.,4823.,5394.,5399.,
-		#					 5407.,5420.,5432.,5516.,5537.,6013.,6016.,6021.,6384.,6491.])
-		#linelist = np.array([4739.1, 4754.0, 4761.9, 4765.8, 4783.4, 4823.5, 
-		#					 5394.6, 5399.5, 5407.3, 5420.3, 5432.3, 5516.8,
-		#					 5537.7, 6013.3, 6016.6, 6021.8, 6384.7, 6491.7])
-		#linewidth = np.array([1.,1.,1.5,1.,1.,1.,
-		#					  1.,1.,1.,1.,1.,1.,
-		#					  1.,1.,1.,1.,1.,1.])
+		linewidth = np.ones(len(newlinelist)) #sets width of green overlay
 
-		linelist = np.array([4739.1, 4754.0, 4761.9, 4765.8, 4783.4, 
-							 4823.5, 5407.3, 5420.3, 5516.8, 5537.7, 
-							 6013.3, 6016.6, 6021.8, 6384.7, 6491.7])
-		linewidth = np.array([1.,1.,1.5,1.,1.,
-							  1.,1.,1.,1.,1.,
-							  1.,1.,1.,1.,1.])
-
-		nrows = 3
-		ncols = 5
+		nrows = 2
+		ncols = int(len(newlinelist)/2)
 		figsize = (32,15)
 		#figsize = (40,15)
 		#figsize = (20,12)
@@ -74,7 +67,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 
 	# Define title
 	if title is None:
-		title = 'Star'+specname
+		title = 'Star'+specname+element
 
 	# Plot showing fits
 	#f, axes = plt.subplots(nrows, ncols, sharey='row', num=1, figsize=figsize)
@@ -93,18 +86,19 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 
 	# Prep for computing reduced chi-sq:
 	if savechisq is not None:
-		chisq = np.zeros(len(linelist))
-		chisq_up = np.zeros(len(linelist))
-		chisq_down = np.zeros(len(linelist))
+		chisq = np.zeros(len(newlinelist))
+		chisq_up = np.zeros(len(newlinelist))
+		chisq_down = np.zeros(len(newlinelist))
 
-	for i in range(len(linelist)):
+	#print('length synth, obswvl',len(synthfluxup),len(obswvl))
+	for i in range(len(newlinelist)):
 		#f = plt.figure(1)
 		#for i, ax in enumerate(f.axes):
 
 		# Range over which to plot
 		#if hires == False:
-		lolim = linelist[i] - 10
-		uplim = linelist[i] + 10
+		lolim = newlinelist[i] - 10
+		uplim = newlinelist[i] + 10
 		#else:
 		#	lolim = linelist[i] - 5
 		#	uplim = linelist[i] + 5
@@ -112,6 +106,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 		# Make mask for wavelength
 		try:
 			mask = np.where((obswvl > lolim) & (obswvl < uplim))
+			#print('mask', mask)
 
 			if len(mask[0]) > 0:
 
@@ -129,7 +124,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 					else:
 						plt.subplot(nrows,ncols,i+1) #,sharey=ax)
 
-					plt.axvspan(linelist[i] - linewidth[i], linelist[i] + linewidth[i], color='green', zorder=1, alpha=0.25)
+					plt.axvspan(newlinelist[i] - linewidth[i], newlinelist[i] + linewidth[i], color='green', zorder=1, alpha=0.25)
 
 					# Plot synthetic spectrum
 					if (synthfluxup is not None) and (synthfluxdown is not None):
@@ -137,13 +132,13 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 					else:
 						plt.plot(obswvl[mask], synthflux[mask], color='r', alpha=0.5, linestyle='-', linewidth=2, label='Synthetic', zorder=100)
 
-					# Plot synthetic spectrum with basically no [Mn/Fe]
-					if synthflux_nomn is not None:
-						plt.plot(obswvl[mask], synthflux_nomn[mask], 'b-', label='[Mn/H] = -10.0', zorder=2)
+					# Plot synthetic spectrum with basically no [X/Fe]
+					if synthflux_no_elem is not None:
+						plt.plot(obswvl[mask], synthflux_no_elem[mask], 'b-', label='['+element+'/H] = -10.0', zorder=2)
 
-					# Plot synthetic spectrum with mean [Mn/Fe] of cluster
+					# Plot synthetic spectrum with mean [X/Fe] of cluster
 					if synthflux_cluster is not None:
-						plt.plot(obswvl[mask], synthflux_cluster[1][mask], color='purple', linestyle='--', linewidth=2, label='<[Mn/H]>='+str(synthflux_cluster[0]), zorder=2)
+						plt.plot(obswvl[mask], synthflux_cluster[1][mask], color='purple', linestyle='--', linewidth=2, label='<['+element+'/H]>='+str(synthflux_cluster[0]), zorder=2)
 
 					# Plot observed spectrum
 					#if hires == False:
@@ -176,7 +171,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 					# Only plot residuals if synth spectrum has been smoothed to match obswvl
 					plt.figure(2)
 					plt.subplot(nrows,ncols,i+1)
-					plt.axvspan(linelist[i] - linewidth[i], linelist[i] + linewidth[i], color='green', alpha=0.25)
+					plt.axvspan(newlinelist[i] - linewidth[i], newlinelist[i] + linewidth[i], color='green', alpha=0.25)
 					plt.errorbar(obswvl[mask], obsflux[mask] - synthflux[mask], yerr=yerr, color='k', fmt='o', label='Residuals')
 					plt.axhline(0, color='r', linestyle='solid', label='Zero')
 
@@ -184,7 +179,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 					# Plot ivar
 					plt.figure(3)
 					plt.subplot(nrows,ncols,i+1)
-					plt.axvspan(linelist[i] - linewidth[i], linelist[i] + linewidth[i], color='green', alpha=0.25)
+					plt.axvspan(newlinelist[i] - linewidth[i], newlinelist[i] + linewidth[i], color='green', alpha=0.25)
 					plt.errorbar(obswvl[mask], ivar[mask], color='k', linestyle='-')
 					#plt.axhline(0, color='r', linestyle='solid', label='Zero')
 
@@ -199,7 +194,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 	#plt.ylabel('Relative flux')
 	#plt.xlabel('Wavelength (A)')
 
-	plt.savefig(outputname+'/'+specname+'finalfits.png',bbox_inches='tight') #,transparent=True)
+	plt.savefig(outputname+'/'+specname+element+'finalfits.png',bbox_inches='tight') #,transparent=True)
 	plt.close(1)
 
 	if resids:
@@ -207,7 +202,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 		fig2.text(0.5, 0.04, 'Wavelength (A)', fontsize=18, ha='center', va='center')
 		fig2.text(0.06, 0.5, 'Residuals', fontsize=18, ha='center', va='center', rotation='vertical')
 		plt.legend(loc='best')
-		plt.savefig(outputname+'/'+specname+'resids.png',bbox_inches='tight')
+		plt.savefig(outputname+'/'+specname+element+'resids.png',bbox_inches='tight')
 		plt.close(2)
 
 	if ivar is not None:
@@ -215,7 +210,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 		fig3.text(0.5, 0.04, 'Wavelength (A)', fontsize=18, ha='center', va='center')
 		fig3.text(0.06, 0.5, 'Inverse variance', fontsize=18, ha='center', va='center', rotation='vertical')
 		#plt.legend(loc='best')
-		plt.savefig(outputname+'/'+specname+'ivar.png',bbox_inches='tight')
+		plt.savefig(outputname+'/'+specname+element+'ivar.png',bbox_inches='tight')
 		plt.close(3)
 
 	# Save the reduced chi-sq values!
@@ -223,5 +218,7 @@ def make_plots(lines, specname, obswvl, obsflux, synthflux, outputname, resids=T
 		with open(savechisq, 'a') as f:
 			for i in range(len(linelist)):
 				f.write(specname[:-1]+'\t'+str(i)+'\t'+str(chisq[i])+'\t'+str(chisq_up[i])+'\t'+str(chisq_down[i])+'\n')
+
+	
 
 	return

@@ -1,0 +1,16 @@
+synth
+terminal       'x11'
+standard_out   '/mnt/c/Research/Sr-SMAUG/temp/t4708g_12f-20a_02Sr-26_4607.out1'
+summary_out    '/mnt/c/Research/Sr-SMAUG/temp/t4708g_12f-20a_02Sr-26_4607.out2'
+model_in       '/mnt/c/Research/Sr-SMAUG/temp/t4708g_12f-20Sr-26.atm'
+lines_in       '/mnt/c/Research/Sr-SMAUG/full_linelists/Sr4607.txt'
+atmosphere    1
+molecules     1
+damping       1
+trudamp       0
+lines         1
+flux/int      0
+plot          0
+synlimits
+  4597.000 4618.000  0.02  1.00
+obspectrum    0

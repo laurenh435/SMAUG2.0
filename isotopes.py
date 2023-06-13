@@ -34,11 +34,13 @@ def isotope_ratio(atom_num, star_sfrac):
     else:
         rfrac = objs[index].Nr
     #print('sfrac:',sfrac)
-    isotope_fracs = []
+    isotope_fracs = [] #fraction of each isotope
+    moog_isotopes = [] #string of isotope identifiers for MOOG e.g. 38.1086 for 86SrII
     for i in range(len(objs[index].isotopes)):
         val = star_sfrac*sfrac[i] + (1-star_sfrac)*rfrac[i]
         isotope_fracs.append(val)
         print('isotope fraction:', objs[index].isotopes[i], val)
+        moog_isotopes.append(str(atom_num)+'.1'+str(objs[index].isotopes[i]).zfill(3))
     #MOOG takes reciprocal of isotope fraction as input
     iso_reciprocal = []
     for fraction in isotope_fracs:
@@ -49,8 +51,9 @@ def isotope_ratio(atom_num, star_sfrac):
     #iso_reciprocal = 1/np.array(isotope_fracs)
     print('reciprocals:', iso_reciprocal)
     #print('check:', np.sum(np.array(isotope_fracs)))
+
     
-    return iso_reciprocal
+    return iso_reciprocal, moog_isotopes
 
 def readTable():
     ''' read in table 1 from Sneden+ 2008

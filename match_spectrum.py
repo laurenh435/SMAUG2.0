@@ -143,7 +143,7 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 
 				# Check that such an entry exists
 				if len(index[0]) > 0:
-					print(index[0])
+					#print(index[0])
 
 					# If needed, do additional coordinate matching
 					if len(index[0]) > 1:

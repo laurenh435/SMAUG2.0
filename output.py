@@ -61,7 +61,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 	if globular:
 		outputname = '/mnt/c/Research/glob/'+galaxyname+'/'+slitmaskname+'.csv'
 	else:
-		outputname = '/mnt/c/Research/Spectra/bscl1/'+slitmaskname+'.csv' #using this for now
+		outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now - I suppose there will be a separate one for each element?
 
 	# Open new file
 	if startstar<1:
@@ -95,7 +95,10 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 	RA, Dec = open_obs_file(filename, coords=True)
 
 	# Make line lists for the element of interest
-	linelists = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element)
+	linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sr.txt', atom_num, element)
+	print('element lines:', elementlines)
+	print('line gaps:',linegaps)
+	#split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element) -- for s-process elements
 
 	# Run chi-sq fitting for all stars in file
 	for i in range(startstar, 1): #ended at Nstars
@@ -120,8 +123,9 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 					continue
 
 			# Run optimization code
-			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], Dec[i], element, atom_num, linelists, plot=True)
-			best_mn, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
+			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], \
+			     Dec[i], element, atom_num, linelists, linegaps, elementlines, plot=True)
+			best_elem, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
 
 		except Exception as e:
 			print(repr(e))
@@ -129,15 +133,15 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 			continue
 
 		print('Finished star '+star.specname, '#'+str(i+1)+'/'+str(Nstars)+' stars')
-		#print('test', star.specname, RA[i], Dec[i], star.temp, star.logg, star.fe, star.fe_err, star.alpha, best_mn, error, finalchisq)
+		#print('test', star.specname, RA[i], Dec[i], star.temp, star.logg, star.fe, star.fe_err, star.alpha, best_elem, error, finalchisq)
 
 		with open(outputname, 'a') as f:
-			f.write(star.specname+'\t'+str(RA[i])+'\t'+str(Dec[i])+'\t'+str(star.temp)+'\t'+str(star.logg)+'\t'+str(star.fe)+'\t'+str(star.fe_err)+'\t'+str(star.alpha)+'\t'+str(best_mn[0])+'\t'+str(error[0])+'\t'+str(finalchisq)+'\n')
+			f.write(star.specname+'\t'+str(RA[i])+'\t'+str(Dec[i])+'\t'+str(star.temp)+'\t'+str(star.logg)+'\t'+str(star.fe)+'\t'+str(star.fe_err)+'\t'+str(star.alpha)+'\t'+str(best_elem[0])+'\t'+str(error[0])+'\t'+str(finalchisq)+'\n')
 
 	return
 
-def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, startstar=0, globular=False):
-	""" Plot chisq contours for stars whose [Mn/H] abundances have already been measured.
+def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False):
+	""" Plot chisq contours for stars whose [X/H] abundances have already been measured.
 
 	Inputs:
 	filename 		-- file with observed spectra
@@ -154,11 +158,11 @@ def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, startsta
 	if globular:
 		file = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname+'.csv'
 	else:
-		file = '/mnt/c/Research/Spectra/bscl1/'+slitmaskname+'.csv' #using this for now
+		file = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now
 
 	name  = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=0, dtype='str')
-	mn    = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=8)
-	mnerr = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=9)
+	elem    = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=8)
+	elemerr = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=9)
 	#dlam = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=8)
 	#dlamerr = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=9)
 
@@ -184,9 +188,9 @@ def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, startsta
 
 				# If so, plot chi-sq contours if error is < 1 dex
 				idx = np.where(name == star.specname)
-				if mnerr[idx][0] < 1:
-					params0 = [mn[idx][0], mnerr[idx][0]]
-					best_mn, error = star.plot_chisq(params0, minimize=False, plots=True, save=True)
+				if elemerr[idx][0] < 1:
+					params0 = [elem[idx][0], elemerr[idx][0]]
+					best_elem, error = star.plot_chisq(params0, minimize=False, plots=True, save=True)
 
 		except Exception as e:
 			print(repr(e))
@@ -197,8 +201,8 @@ def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, startsta
 
 	return
 
-def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, startstar=0, globular=False, lines='new', mn_cluster=None):
-	""" Plot fits, residuals, and ivar for stars whose [Mn/H] abundances have already been measured.
+def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False, lines='new', mn_cluster=None):
+	""" Plot fits, residuals, and ivar for stars whose [X/H] abundances have already been measured.
 
 	Inputs:
 	filename 		-- file with observed spectra
@@ -221,13 +225,13 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 	if globular:
 		file = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname+'.csv'
 	else:
-		file = '/mnt/c/Research/Spectra/bscl1/'+slitmaskname+'.csv' #using this for now
+		file = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now
 
 	# Output filepath
 	if globular:
 		outputname = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname
 	else:
-		outputname = '/mnt/c/Research/Spectra/bscl1/'+slitmaskname #using this for now
+		outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element #using this for now
 
 	name  = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=0, dtype='str')
 	mn    = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=8)
@@ -239,8 +243,8 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 	# Open file to store reduced chi-sq values
 	chisqfile = outputname+'_chisq.txt'
 	with open(chisqfile, 'w+') as f:
-		print('made it here')
-		f.write('Star'+'\t'+'Line'+'\t'+'redChiSq (best[Mn/H])'+'\t'+'redChiSq (best[Mn/H]+0.15)'+'\t'+'redChiSq (best[Mn/H]-0.15)'+'\n')
+		#print('made it here')
+		f.write('Star'+'\t'+'Line'+'\t'+'redChiSq (best['+element+'/H])'+'\t'+'redChiSq (best['+element+'/H]+0.15)'+'\t'+'redChiSq (best['+element+'/H]-0.15)'+'\n')
 
 	# Plot spectra for each star
 	for i in range(startstar, 1): #ended at Nstars
@@ -254,16 +258,17 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 				continue
 
 			# Open star
-			star = chi_sq.obsSpectrum(filename, paramfilename, i, False, galaxyname, slitmaskname, globular, lines, plot=True)
+			star = chi_sq.obsSpectrum(filename, paramfilename, i, False, galaxyname, slitmaskname, globular, lines, plot=True) #missing a bunch of arguments?
+			#self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, atom_num, linelists, linegaps, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None
 
 			# Check if star has already had [Mn/H] measured
 			if star.specname in name:
 
 				# If so, open data file for star
 				if globular:
-					datafile = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname+'/'+str(star.specname)+'_data.csv'
+					datafile = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname+'/'+str(star.specname)+element+'_data.csv'
 				else:
-					datafile = '/mnt/c/Research/Spectra/bscl1/'+slitmaskname+'/'+str(star.specname)+'_data.csv'
+					datafile = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+str(star.specname)+element+'_data.csv'
 
 				# Get observed and synthetic spectra and inverse variance array
 				obswvl 		= np.genfromtxt(datafile, delimiter=',', skip_header=2, usecols=0)
@@ -290,7 +295,7 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 
 					# Write all plotting data to a file
 					hdr = 'Star '+str(star.specname)+'\n'+'obswvl\tobsflux\tsynthflux\tsynthfluxup\tsynthfluxdown\tsynthflux_nomn\n'
-					np.savetxt(outputname+'/'+str(star.specname)+'_finaldata.csv', np.asarray((obswvl,obsflux,synthflux,synthfluxup,synthfluxdown,synthflux_nomn)).T, header=hdr)
+					np.savetxt(outputname+'/'+str(star.specname)+element+'_finaldata.csv', np.asarray((obswvl,obsflux,synthflux,synthfluxup,synthfluxdown,synthflux_nomn)).T, header=hdr)
 
 		except Exception as e:
 			print(repr(e))
@@ -302,7 +307,7 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, start
 	return
 
 def main():
-	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Mn', atom_num=25, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
+	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr', atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
 
 
     

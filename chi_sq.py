@@ -18,7 +18,6 @@ import sys
 import numpy as np
 import math
 from run_moog import runMoog
-from output import specify_element
 from smooth_gauss import smooth_gauss
 from match_spectrum import open_obs_file, smooth_gauss_wrapper
 from continuum_div import get_synth, mask_obs_for_division, divide_spec, mask_obs_for_abundance
@@ -33,7 +32,8 @@ from make_plots import make_plots
 # Observed spectrum
 class obsSpectrum:
 
-	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, atom_num, linelists, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
+	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element,\
+	       atom_num, linelists, linegaps, elementlines, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
 
 		# Observed star
 		self.obsfilename 	= obsfilename 	# File with observed spectra
@@ -46,6 +46,8 @@ class obsSpectrum:
 		self.element        = element       # element you want the abundances of e.g. 'Mn', 'Sr'
 		self.atom_num       = atom_num      # atomic number of the element you want the abundances of
 		self.linelists      = linelists     # list of line list file names for MOOG
+		self.linegaps       = linegaps
+		self.elementlines   = elementlines    
 
 		# If observed spectrum comes from moogify file (default), open observed file and continuum normalize as usual
 		if obsspecial is None:
@@ -54,14 +56,16 @@ class obsSpectrum:
 			if self.globular:
 				self.outputname = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname
 			else:
-				self.outputname = '/mnt/c/Research/Spectra/bscl1' #'/raid/madlr/dsph/'+galaxyname+'/'+slitmaskname
+				self.outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput' #'/raid/madlr/dsph/'+galaxyname+'/'+slitmaskname
 
 			# Open observed spectrum
 			self.specname, self.obswvl, self.obsflux, self.ivar, self.dlam, self.zrest = open_obs_file(self.obsfilename, retrievespec=self.starnum)
-			print('opened observed spectrum')
+
+			#self.elementlines = [lines for lines in self.elementlines if lines > self.obswvl[0]] 
 
 			# Get measured parameters from observed spectrum
-			self.temp, self.logg, self.fe, self.alpha, self.fe_err = open_obs_file(self.paramfilename, self.starnum, specparams=True, objname=self.specname, inputcoords=[RA, Dec])
+			self.temp, self.logg, self.fe, self.alpha, self.fe_err = open_obs_file(self.paramfilename, self.starnum, \
+									  specparams=True, objname=self.specname, inputcoords=[RA, Dec])
 			print('got measured parameters')
 			if specialparams is not None:
 				self.temp = specialparams[0]
@@ -73,51 +77,58 @@ class obsSpectrum:
 				# Plot observed spectrum
 				plt.figure()
 				plt.plot(self.obswvl, self.obsflux, 'k-')
-				plt.axvspan(4749, 4759, alpha=0.5, color='blue')
-				plt.axvspan(4778, 4788, alpha=0.5, color='blue')
-				plt.axvspan(4818, 4828, alpha=0.5, color='blue')
-				plt.axvspan(5389, 5399, alpha=0.5, color='blue')
-				plt.axvspan(5532, 5542, alpha=0.5, color='blue')
-				plt.axvspan(6008, 6018, alpha=0.5, color='blue')
-				plt.axvspan(6016, 6026, alpha=0.5, color='blue')
-				plt.axvspan(4335, 4345, alpha=0.5, color='red')
-				plt.axvspan(4856, 4866, alpha=0.5, color='red')
-				plt.axvspan(6558, 6568, alpha=0.5, color='red')
-				plt.savefig(self.outputname+'/'+self.specname+'_obs.png')
+				for line in self.elementlines:
+					plt.axvspan(line-10, line+10, alpha=0.5, color='pink')
+				plt.savefig(self.outputname+'/'+self.specname+self.element+'_obs.png')
 				plt.close()
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
-			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar, self.element, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines)
+			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
+										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines)
 
 			if plot:
 				# Plot spliced synthetic spectrum
 				plt.figure()
 				plt.plot(obswvlmask[0], synthfluxmask[0], 'b-')
 				plt.plot(obswvlmask[1], synthfluxmask[1], 'r-')
-				plt.savefig(self.outputname+'/'+self.specname+'_synth.png')
+				plt.savefig(self.outputname+'/'+self.specname+self.element+'_synth.png')
 				plt.close()
 
 			# Compute continuum-normalized observed spectrum
-			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmaclip=True, specname=self.specname, outputname=self.outputname)
+			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, \
+						   sigmaclip=True, specname=self.specname, outputname=self.outputname)
+			
+			# Get rid of lines outside of spectrum range
+			# badspots_blue = np.where(self.obsflux_norm[0:2000] < 0)
+			# blue_cutoff = self.obswvl[badspots_blue][-1]
+			# badspots_red = np.where(self.obsflux_norm[-2000:-1] < 0)
+			# red_cutoff = self.obswvl[badspots_red][-1]
+			# print(self.linelists)
+			# self.newlinelists = []
+			# for i in range(len(self.elementlines)):
+			# 	if self.elementlines[i] > blue_cutoff and self.elementlines[i] < red_cutoff:
+			# 		self.newlinelists.append(self.linelists[i])
+			# 	else:
+			# 		continue
+			# print('revised linelist:', self.newlinelists)
+
+			#self.elementlines = [lines for lines in self.elementlines if lines > blue_cutoff and lines < red_cutoff]
+			#print('lines in spectrum range:', self.elementlines)
+
 
 			if plot:
 				# Plot continuum-normalized observed spectrum
 				plt.figure()
 				plt.plot(self.obswvl, self.obsflux_norm, 'k-')
-				plt.axvspan(4749, 4759, alpha=0.5, color='blue')
-				plt.axvspan(4778, 4788, alpha=0.5, color='blue')
-				plt.axvspan(4818, 4828, alpha=0.5, color='blue')
-				plt.axvspan(5389, 5399, alpha=0.5, color='blue')
-				plt.axvspan(5532, 5542, alpha=0.5, color='blue')
-				plt.axvspan(6008, 6018, alpha=0.5, color='blue')
-				plt.axvspan(6016, 6026, alpha=0.5, color='blue')
-				plt.axvspan(4335, 4345, alpha=0.5, color='red')
-				plt.axvspan(4856, 4866, alpha=0.5, color='red')
-				plt.axvspan(6558, 6568, alpha=0.5, color='red')
+				for line in self.elementlines:
+					plt.axvspan(line-10, line+10, alpha=0.5, color='pink')
+				#what's red and what's blue?
+				#plt.axvspan(4749, 4759, alpha=0.5, color='blue')
+				#plt.axvspan(4335, 4345, alpha=0.5, color='red')
 				plt.ylim((0,5))
-				plt.savefig(self.outputname+'/'+self.specname+'_obsnormalized.png')
+				plt.savefig(self.outputname+'/'+self.specname+self.element+'_obsnormalized.png')
 				plt.close()
-				np.savetxt(self.outputname+'/'+self.specname+'_obsnormalized.txt',np.asarray((self.obswvl,self.obsflux_norm)).T)
+				np.savetxt(self.outputname+'/'+self.specname+self.element+'_obsnormalized.txt',np.asarray((self.obswvl,self.obsflux_norm)).T)
 
 			if wvlcorr:
 				print('Doing wavelength correction...')
@@ -138,7 +149,8 @@ class obsSpectrum:
 					print('Couldn\'t complete wavelength correction for some reason.')
 
 			# Crop observed spectrum into regions around Mn lines
-			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, lines=self.lines)
+			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
+												        self.ivar_norm, self.dlam, self.element, self.linegaps, lines=self.lines)
 
 		# Else, check if we need to open a hi-res file to get the spectrum
 		elif hires is not None:
@@ -168,10 +180,11 @@ class obsSpectrum:
 			print('Redshift: ', self.zrest)
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
-			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines, hires=True)
+			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
+										   self.linegaps, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines, hires=True)
 
 			# Compute continuum-normalized observed spectrum
-			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, specname=self.specname, outputname=self.outputname, hires=True)
+			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, specname=self.specname, outputname=self.outputname, hires=True)
 
 			if smooth is not None:
 
@@ -192,7 +205,8 @@ class obsSpectrum:
 				plt.close()
 
 			# Crop observed spectrum into regions around element lines
-			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, lines=self.lines, hires=True)
+			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
+												        self.ivar_norm, self.dlam, self.element, self.linegaps, lines=self.lines, hires=True)
 
 		# Else, take both spectrum and observed parameters from obsspecial keyword
 		else:
@@ -241,8 +255,8 @@ class obsSpectrum:
 
 		# Compute synthetic spectrum
 		print('Computing synthetic spectrum with parameters: ', elem) #, dlam)
-		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists, atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], solar=[5.43], lines=self.lines)
-
+		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists,\
+		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], solar=[5.43], lines=self.lines)
 		# Loop over each line
 		synthflux = []
 		for i in self.skip:
@@ -295,9 +309,9 @@ class obsSpectrum:
 
 		# Do some checks
 		if len(np.atleast_1d(best_elem)) == 1:
-			finalsynth = self.synthetic(self.obswvl_final, best_elem, self.atom_num, self.element, full=True)
+			finalsynth = self.synthetic(self.obswvl_final, best_elem, full=True)
 		else:
-			finalsynth = self.synthetic(self.obswvl_final, best_elem[0], best_elem[1], self.atom_num, self.element, full=True)
+			finalsynth = self.synthetic(self.obswvl_final, best_elem[0], best_elem[1], full=True)
 
 		# Output the final data
 		if output:
@@ -305,16 +319,16 @@ class obsSpectrum:
 			if len(np.atleast_1d(best_elem)) == 1:
 				#finalsynthup 	= self.synthetic(self.obswvl_final, best_mn + error, full=True)
 				#finalsynthdown 	= self.synthetic(self.obswvl_final, best_mn - error, full=True)
-				finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + 0.15, self.atom_num, self.element, full=True)
-				finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - 0.15, self.atom_num, self.element, full=True)
+				finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + 0.15, full=True)
+				finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - 0.15, full=True)
 			else:
 				#finalsynthup = self.synthetic(self.obswvl_final, best_mn[0] + error[0], best_mn[1], full=True)
 				#finalsynthdown = self.synthetic(self.obswvl_final, best_mn[0] - error[0], best_mn[1], full=True)
-				finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], self.atom_num, self.element, full=True)
-				finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], self.atom_num, self.element, full=True)
+				finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], full=True)
+				finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], full=True)
 
 			# Create file
-			filename = self.outputname+'/'+self.specname+'_data.csv'
+			filename = self.outputname+'/'+self.specname+self.element+'_data.csv'
 
 			# Define columns
 			columnstr = ['wvl','obsflux','synthflux','synthflux_up','synthflux_down','ivar']
@@ -335,10 +349,14 @@ class obsSpectrum:
 
 			# Make plots
 			if plots:
-				make_plots(self.lines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth, self.outputname, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, hires=hires)
+				make_plots(self.lines, self.elementlines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
+	        self.outputname, self.element, self.skip, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, hires=hires)
 
 		elif plots:
-			make_plots(self.lines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth, self.outputname, ivar=self.ivar_final, hires=hires)
+			make_plots(self.lines, self.elementlines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
+	       self.outputname, self.element, self.skip, ivar=self.ivar_final, hires=hires)
+		
+		#print('finalsynth:', finalsynth)
 
 		return best_elem, error
 
@@ -361,6 +379,7 @@ class obsSpectrum:
 
 		if minimize:
 			elem_result, elem_error = self.minimize_scipy(params0, plots=plots, output=output)
+			print('elem_result:',elem_result)
 		else:
 			elem_result = [params0[0]]
 			elem_error  = [params0[1]]
@@ -382,7 +401,7 @@ class obsSpectrum:
 			plt.plot(elem_list, chisq_list, '-o')
 			plt.ylabel(r'$\chi^{2}_{red}$', fontsize=16)
 			plt.xlabel('['+self.element+'/H]', fontsize=16)
-			plt.savefig(self.outputname+'/'+self.specname+'_redchisq.png')
+			plt.savefig(self.outputname+'/'+self.specname+self.element+'_redchisq.png')
 			plt.close()
 
 			if save:

@@ -350,7 +350,7 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 
 	return flux
 
-def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None):
+def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None):
 	"""Create *.atm file
 
     Inputs:
@@ -360,7 +360,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', atom_nums=
     alpha 	 -- [alpha/Fe]
 
     Keywords:
-    dir 	  -- directory to write atmospheres to [default = '/raid/madlr']
+    dir 	  -- directory to write atmospheres to [default = '/mnt/c/Research/Sr-SMAUG/atm/']
     atom_nums -- list of atomic numbers of elements to add to the list of atoms
     elements  -- list of element symbols you want added to the list of atoms e.g. 'mn', 'sr'
     abunds 	  -- list of elemental abundances corresponding to list of elements
@@ -381,6 +381,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/SMAUG/atm/', atom_nums=
 		# Get atmosphere data
 		#####################
 		atmosphere = interpolateAtm(temp,logg,fe,alpha)
+		#print('parameters for atm file',temp,logg,fe,alpha)
 
 		# Header text
 		#############
