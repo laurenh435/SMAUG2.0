@@ -1,9 +1,9 @@
 # wvl_corr.py
 # Functions to do empirical wavelength corrections 
 # 
-# Created 21 June 18
+# Created 21 June 18 by M. de los Reyes
 # Updated 22 June 18
-# edited 6/8/2023 -LEH
+# edited 6/16/2023 -LEH
 ###################################################################
 
 #Backend for python3 on mahler

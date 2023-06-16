@@ -53,8 +53,8 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 			file.write('summary_out    '+out2+'\n')
 			file.write('model_in       '+'\''+atmfile+'\''+'\n')
 			file.write('lines_in       '+'\''+linelist+'\''+'\n')
-			#file.write('strong        1'+'\n') #changed this to 1 so that MOOG will take a strong line list
-			#file.write('stronglines_in '+'\'blue.strong\''+'\n') #trying to point to strong line list
+			file.write('strong        1'+'\n') #changed this to 1 so that MOOG will take a strong line list
+			file.write('stronglines_in '+'\'/mnt/c/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n') #trying to point to strong line list
 			file.write('atmosphere    1'+'\n')
 			file.write('molecules     1'+'\n')
 			file.write('damping       1'+'\n')
@@ -64,16 +64,31 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 			file.write('plot          0'+'\n')
 			file.write('synlimits'+'\n')
 			file.write('  '+'{0:.3f}'.format(wavelengthrange[0])+' '+'{0:.3f}'.format(wavelengthrange[1])+'  0.02  1.00'+'\n')
-			# Get ratios of isotopes of element of interest: 2nd entry to isotope_ratio is fraction of the element created by s-process
-			# Make this so that isotope ratios of Ba, La, Nd, Eu, CH are built in (for running with line lists based on full_lines_sprocess)
-			# if atom_nums[0] > 30:
-			# 	isotope_reciprocals, isotopes = isotope_ratio(atom_nums[0],0.8) #right now, the element of interest must be the first element in the atom_nums list
-			# 	file.write('isotopes      '+str(len(isotopes))+'    1'+'\n')
-			# 	for i in range(len(isotopes)):
-			# 		file.write('  '+str(isotopes[i])+' '+str(isotope_reciprocals[i])+'\n') 
+			# Calculate C12 C13 ratio to get isotope abundances for CH and CN
+			if logg <= 2.0:
+				c12c13 = 6.0
+			elif logg > 2.7:
+				c12c13 = 50.0
+			else:
+				c12c13 = 63.0 * logg - 120.0
+			c12reciprocal = round((c12c13 + 1)/c12c13, 2)
+			c13reciprocal = round(1/(1-(1/c12reciprocal)), 2)
+			# Get ratios of isotopes of element of interest: 2nd entry to isotope_ratio is fraction of the element created by s-process (for running with line lists based on full_lines_sprocess):
+			Ba_isotope_reciprocals, Ba_isotopes = isotope_ratio(56,0.8)
+			Nd_isotope_reciprocals, Nd_isotopes = isotope_ratio(60,0.8)
+			Eu_isotope_reciprocals, Eu_isotopes = isotope_ratio(63,0.8)
+			all_reciprocals = Ba_isotope_reciprocals + Nd_isotope_reciprocals + Eu_isotope_reciprocals
+			all_reciprocals.append(c12reciprocal)
+			all_reciprocals.append(c13reciprocal)
+			all_reciprocals.append(c12reciprocal)
+			all_reciprocals.append(c13reciprocal)
+			all_isotopes = Ba_isotopes + Nd_isotopes + Eu_isotopes + ['106.00112','106.00113','607.01214','607.01314']
+			file.write('isotopes     '+str(len(all_isotopes))+'         1'+'\n')
+			for i in range(len(all_isotopes)):
+				file.write(' '+str(all_isotopes[i])+'      '+str(all_reciprocals[i])+'\n') 
 			file.write('obspectrum    0')
 	
-	return filestr, wavelengthrange
+	return filestr, wavelengthrange, len(all_isotopes)
 
 def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/Sr-SMAUG/output/', atom_nums=None, elements=None, abunds=None, solar=None, lines='new'):
 	"""Run MOOG for each desired element linelist and splice spectra.
@@ -137,8 +152,9 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 		# Create *.par file
 		parname = name + '_' + linelists[i][-8:-4]
 		#print('parname:', parname)
-		parfile, wavelengthrange = createPar(parname, atom_nums, logg, atmfile, linelists[i], directory=tempdir)
+		parfile, wavelengthrange, nisotopes = createPar(parname, atom_nums, logg, atmfile, linelists[i], directory=tempdir)
 		#print('parfile:', parfile)
+		#parfile = '/mnt/c/Research/Sr-SMAUG/temp/parfile.par'
 
 
 		# Run MOOG
@@ -153,7 +169,9 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 		outfile = tempdir+'/'+parname+'.out2'
 
 		wavelength = np.linspace(wavelengthrange[0],wavelengthrange[1],math.ceil((wavelengthrange[1]-wavelengthrange[0])/0.02), endpoint=True)
-		data = pandas.read_csv(outfile, skiprows=[0,1,-1], delimiter=' ').to_numpy()
+		skiprows = np.arange(nisotopes+2)
+		skiprows = np.append(skiprows,-1)
+		data = pandas.read_csv(outfile,skiprows=skiprows, delimiter=' ').to_numpy() #skiprows=[0,1,-1], delimiter=' ').to_numpy()
 		flux = data[~np.isnan(data)][:-1]
 
 		spectrum.append([1.-flux, wavelength])
@@ -161,6 +179,6 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 	# Output synthetic spectrum in a format that continuum_div functions will understand (list of arrays)
 
 	# Clean out the temporary directory
-	#shutil.rmtree(tempdir)
+	shutil.rmtree(tempdir)
 
 	return spectrum

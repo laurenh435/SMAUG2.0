@@ -133,7 +133,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
     mask 	  -- mask to avoid bad shit (chip gaps, bad pixels, Na D lines)
     """
 
-	print('masking obs for division')
+	#print('masking obs for division')
 
 	# Get smoothed synthetic spectrum and (NOT continuum-normalized) observed spectrum
 	synthflux = get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=temp, logg=logg, fe=fe, alpha=alpha)
@@ -508,6 +508,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lineg
 
 	skip = np.arange(len(lines))
 	for line in range(len(lines)):
+		#print('checking line',lines[line])
 
 		# Skip spectral regions where the chip gap falls
 		if hires == False:
@@ -521,8 +522,11 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lineg
 			skip = np.delete(skip, np.where(skip==line))
 		
 		# Skip lines that are at edges of spectrum where things go crazy
-		blue_cutoff = obswvl[np.where(obsflux_norm[0:2000] < 0)][-1]
-		red_cutoff = obswvl[np.where(obsflux_norm[-2000:-1] < 0)][-1]
+		print('length of observed spectrum', len(obsflux_norm))
+		#print(np.where(obsflux_norm[0:2000] <= 0))
+		blue_cutoff = obswvl[np.where(obsflux_norm[0:2000] <= 0)][-1]
+		red_cutoff = obswvl[-3000:][np.where(obsflux_norm[-3000:] <= 0)][0]
+		print('cutoffs', blue_cutoff, red_cutoff)
 		if lines[line][0] > blue_cutoff and lines[line][1] < red_cutoff:
 			continue
 		else:

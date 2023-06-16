@@ -23,32 +23,37 @@ def combine_lines(atom_nums, filestr):
     linemake_file = filepath+'full_linemake.txt'
     linemakelines = read_file(linemake_file, header=True)
 
-    atomlines = list()
+    atomlines = []
     for atom in atom_nums:
         #keep only desired element lines in linemake lines to get hyperfine splitting
         newlinemakelines = [rows for rows in linemakelines if int(float(rows[10:20].strip()))==atom]
-        atomlines += newlinemakelines
+        atomlines.append(newlinemakelines)
         #remove that element's lines from Ivanna's list
         valdnistlines = [rows for rows in valdnistlines if int(float(rows[10:20].strip()))!=atom]
 
     #combine the two lists into one, still ordered by wavelength, and write into a new file
     newfile = filepath+'full_lines_'+filestr+'.txt'
     ofile=open(newfile, 'w')
-    num_atomlines = len(atomlines)
-    num_valdnist = len(valdnistlines)
-    print('number of lines from linemake:',num_atomlines, 'number of lines from Ivannas list:',num_valdnist)
-    i, j = 0, 0
-    while i < num_atomlines and j < num_valdnist:
-        if float(atomlines[i][0:10].strip()) < float(valdnistlines[j][0:10].strip()):
-            ofile.write(atomlines[i])
-            i += 1
-        else:
-            ofile.write(valdnistlines[j])
-            j += 1
-    for k in atomlines[i:]:
-         ofile.write(k)
-    for m in valdnistlines[j:]:
-         ofile.write(m)
+    # num_atomlines = len(atomlines)
+    # num_valdnist = len(valdnistlines)
+    #print('number of lines from linemake:',num_atomlines, 'number of lines from Ivannas list:',num_valdnist)
+    total = valdnistlines
+    for element in atomlines:
+        i, j = 0, 0
+        natomlines = len(element)
+        ntotal = len(total)
+        #print(natomlines,ntotal)
+        while i < natomlines and j < ntotal:
+            if float(element[i][0:10].strip()) < float(total[j][0:10].strip()):
+                total.insert(j,element[i])
+                ntotal = len(total)
+                i += 1
+            else:
+                j += 1
+        for k in element[i:]:
+            total.append(k)
+    for p in total:
+        ofile.write(p)
     ofile.close()
 
     return
@@ -169,6 +174,6 @@ def read_file(filepath, header=False):
 
 if __name__ == "__main__":
     #Sr:38, Mn:25
-    combine_lines([38], 'sr')
+    combine_lines([38,39,40,56,57,58,60,63], 'sprocess')
     #split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_mn.txt', 25, 'Mn')
 

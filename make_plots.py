@@ -18,7 +18,7 @@ import numpy as np
 import math
 
 # Code to make plots
-def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthflux_no_elem=None, synthflux_cluster=None, savechisq=None, hires=False):
+def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthflux_no_elem=None, synthflux_cluster=None, savechisq=None, hires=False):
 	"""Make plots.
 
 	Inputs:
@@ -46,16 +46,16 @@ def make_plots(lines, linelist, specname, obswvl, obsflux, synthflux, outputname
 
 	# Define lines to plot
 	newlinelist = []
-	for j in skip:
-		newlinelist.append(linelist[j])
+	for j in linelist:
+		for index in skip:
+			if j > linegaps[index][0] and j < linegaps[index][1]:
+				newlinelist.append(j)
+		#newlinelist.append(linelist[j])
 	if lines == 'new':
 		linewidth = np.ones(len(newlinelist)) #sets width of green overlay
 
 		nrows = 2
-		if len(newlinelist) == 1:
-			ncols = 1
-		else:
-			ncols = int(len(newlinelist)/2)
+		ncols = int(len(newlinelist)/2) + 1
 		figsize = (32,15)
 		#figsize = (40,15)
 		#figsize = (20,12)

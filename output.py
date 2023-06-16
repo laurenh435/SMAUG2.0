@@ -95,13 +95,13 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 	RA, Dec = open_obs_file(filename, coords=True)
 
 	# Make line lists for the element of interest
-	linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sr.txt', atom_num, element)
+	linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element)
 	print('element lines:', elementlines)
 	print('line gaps:',linegaps)
 	#split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element) -- for s-process elements
 
 	# Run chi-sq fitting for all stars in file
-	for i in range(startstar, 1): #ended at Nstars
+	for i in range(startstar, 10): #range(startstar, Nstars)
 
 		try:
 			# Get metallicity of star to use for initial guess
@@ -113,13 +113,13 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 
 			# Check for bad parameter measurement
 			if np.isclose(temp, 4750.) and np.isclose(fe,-1.5) and np.isclose(alpha,0.2):
-				print('Bad parameter measurement! Skipped #'+str(i+1)+'/'+str(Nstars)+' stars')
+				print('Bad parameter measurement! Skipped #'+str(i+1)+'/'+str(Nstars)+' stars'+'\n')
 				continue
 
 			# Do membership check
 			if membercheck is not None:
 				if specname not in membernames:
-					print('Not in member list! Skipped '+specname)  #'+str(i+1)+'/'+str(Nstars)+' stars')
+					print('Not in member list! Skipped '+specname+'\n')  #'+str(i+1)+'/'+str(Nstars)+' stars')
 					continue
 
 			# Run optimization code
@@ -129,10 +129,10 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 
 		except Exception as e:
 			print(repr(e))
-			print('Skipped star #'+str(i+1)+'/'+str(Nstars)+' stars')
+			print('Skipped star #'+str(i+1)+'/'+str(Nstars)+' stars'+'\n')
 			continue
 
-		print('Finished star '+star.specname, '#'+str(i+1)+'/'+str(Nstars)+' stars')
+		print('Finished star '+star.specname, '#'+str(i+1)+'/'+str(Nstars)+' stars'+'\n')
 		#print('test', star.specname, RA[i], Dec[i], star.temp, star.logg, star.fe, star.fe_err, star.alpha, best_elem, error, finalchisq)
 
 		with open(outputname, 'a') as f:

@@ -39,7 +39,7 @@ def isotope_ratio(atom_num, star_sfrac):
     for i in range(len(objs[index].isotopes)):
         val = star_sfrac*sfrac[i] + (1-star_sfrac)*rfrac[i]
         isotope_fracs.append(val)
-        print('isotope fraction:', objs[index].isotopes[i], val)
+        #print('isotope fraction:', objs[index].isotopes[i], val)
         moog_isotopes.append(str(atom_num)+'.1'+str(objs[index].isotopes[i]).zfill(3))
     #MOOG takes reciprocal of isotope fraction as input
     iso_reciprocal = []
@@ -47,9 +47,9 @@ def isotope_ratio(atom_num, star_sfrac):
         if fraction == 0: #just in case one of the isotope fractions is 0
             iso_reciprocal.append(999999999)
         else:
-            iso_reciprocal.append(1/fraction)
+            iso_reciprocal.append(round(1/fraction, 2))
     #iso_reciprocal = 1/np.array(isotope_fracs)
-    print('reciprocals:', iso_reciprocal)
+    #print('reciprocals:', iso_reciprocal)
     #print('check:', np.sum(np.array(isotope_fracs)))
 
     

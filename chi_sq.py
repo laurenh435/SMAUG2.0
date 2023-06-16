@@ -280,6 +280,17 @@ class obsSpectrum:
 		if full:
 			synthflux = np.hstack(synthflux[:])
 
+		#for debugging, plot each guess that SMAUG makes
+		# mask = np.where((self.obswvl > 4597) & (self.obswvl < 4618))
+		# figsize = (32,15)
+		# plt.figure(figsize=figsize)
+		# plt.plot(self.obswvl[mask][0:48], synthflux, 'r-')
+		# plt.scatter(self.obswvl[mask],self.obsflux_norm[mask])
+		# plt.title(self.specname + str(elem))
+		# plt.ylim(0.75,1.1)
+		# plt.savefig(self.outputname+'/'+self.specname+'_'+str(elem)+'.png')
+		# plt.close()
+
 		return synthflux
 
 	def minimize_scipy(self, params0, output=False, plots=False, hires=False):
@@ -349,11 +360,11 @@ class obsSpectrum:
 
 			# Make plots
 			if plots:
-				make_plots(self.lines, self.elementlines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
+				make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
 	        self.outputname, self.element, self.skip, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, hires=hires)
 
 		elif plots:
-			make_plots(self.lines, self.elementlines, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
+			make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
 	       self.outputname, self.element, self.skip, ivar=self.ivar_final, hires=hires)
 		
 		#print('finalsynth:', finalsynth)
