@@ -58,7 +58,7 @@ def combine_lines(atom_nums, filestr):
 
     return
 
-def split_list(full_list, atom_num, element):
+def split_list(full_list, atom_num, element, stravinsky=False):
     '''splits full line list as created in combine_lines into +/- 10 A
     bands around the element's lines in the reference line list
 
@@ -72,7 +72,10 @@ def split_list(full_list, atom_num, element):
     newgaps      -- +/- 10 angstrom gaps around lines of interest with overlapping gaps combined
     elementlines -- lines from element of interest from 'Ji20_linelist.moog'
     '''
-    filepath = '/mnt/c/Research/Sr-SMAUG/full_linelists/'
+    if stravinsky:
+        filepath = '/home/lhender6/Research/Sr-SMAUG/full_linelists/'
+    else:
+        filepath = '/mnt/c/Research/Sr-SMAUG/full_linelists/'
     full_lines = read_file(full_list)
     ref_lines = read_file(filepath+'Ji20_linelist.moog', header=True)
     #get reference lines only for element of interest
@@ -84,7 +87,7 @@ def split_list(full_list, atom_num, element):
     gaps = []
     elementlines = []
     for i in keep_lines:
-        elementlines.append(int(float(i[0:10].strip())))
+        elementlines.append(float(i[0:10].strip()))
         gap = [float(i[0:10].strip())-10, float(i[0:10].strip())+10]
         gaps.append(gap)
 
@@ -146,7 +149,8 @@ def split_list(full_list, atom_num, element):
     for k in range(len(newgaps)):
         gap_lines = [lines for lines in full_lines if float(lines[0:10].strip())>newgaps[k][0] and float(lines[0:10].strip())<newgaps[k][1]]
         newfile = filepath+element+gapkey[k]+'.txt'
-        linelists.append(newfile)
+        name = 'full_linelists/'+element+gapkey[k]+'.txt' #file path to write into parameter file for MOOG
+        linelists.append(name)
         ofile=open(newfile, 'w')
         ofile.write(element+' '+gapkey[k]+' +/-10 A'+'\n') #MOOG wants first line to be a header of some sort
         for j in gap_lines:

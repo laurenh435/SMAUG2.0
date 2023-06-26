@@ -21,7 +21,7 @@ import pandas
 import tempfile
 import shutil
 	
-def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
+def createPar(name, atom_nums, logg, atmfile='', linelist='', directory='', stravinsky=False):
 	"""Create *.par file using *.atm file and linelist."""
 
 	# Open linelist and get wavelength range to synthesize spectrum
@@ -39,8 +39,14 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 	if readytowrite:
 
 		# Outfile names:
-		out1 = '\''+directory+name+'.out1\'' #took out slash between directory and name
-		out2 = '\''+directory+name+'.out2\'' #took out slash between directory and name
+		#out1 = '\''+directory+name+'.out1\'' #took out slash between directory and name
+		#out2 = '\''+directory+name+'.out2\'' #took out slash between directory and name
+		# if stravinsky:
+		# 	out1 = '\'/raid/lhender6/temp/'+name+'.out1\''
+		# 	out2 = '\'/raid/lhender6/temp/'+name+'.out2\''
+		# else:
+		out1 = '\'temp/'+name+'.out1\''
+		out2 = '\'temp/'+name+'.out2\''
 		#print('out2:',out2)
 
 		# If file exists, open file
@@ -53,8 +59,14 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 			file.write('summary_out    '+out2+'\n')
 			file.write('model_in       '+'\''+atmfile+'\''+'\n')
 			file.write('lines_in       '+'\''+linelist+'\''+'\n')
+			#file.write('lines_in       '+'\'/raid/lhender6/lines/Sr4215.txt\''+'\n')
 			file.write('strong        1'+'\n') #changed this to 1 so that MOOG will take a strong line list
-			file.write('stronglines_in '+'\'/mnt/c/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n') #trying to point to strong line list
+			# if stravinsky:
+			# 	#file.write('stronglines_in '+'\'/home/lhender6/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n')
+			# 	file.write('stronglines_in '+'\'full_linelists/blue.strong\''+'\n')
+			# else:
+			# 	#file.write('stronglines_in '+'\'/mnt/c/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n')
+			file.write('stronglines_in '+'\'full_linelists/blue.strong\''+'\n')
 			file.write('atmosphere    1'+'\n')
 			file.write('molecules     1'+'\n')
 			file.write('damping       1'+'\n')
@@ -74,9 +86,9 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 			c12reciprocal = round((c12c13 + 1)/c12c13, 2)
 			c13reciprocal = round(1/(1-(1/c12reciprocal)), 2)
 			# Get ratios of isotopes of element of interest: 2nd entry to isotope_ratio is fraction of the element created by s-process (for running with line lists based on full_lines_sprocess):
-			Ba_isotope_reciprocals, Ba_isotopes = isotope_ratio(56,0.8)
-			Nd_isotope_reciprocals, Nd_isotopes = isotope_ratio(60,0.8)
-			Eu_isotope_reciprocals, Eu_isotopes = isotope_ratio(63,0.8)
+			Ba_isotope_reciprocals, Ba_isotopes = isotope_ratio(56,0.8, stravinsky=stravinsky)
+			Nd_isotope_reciprocals, Nd_isotopes = isotope_ratio(60,0.8, stravinsky=stravinsky)
+			Eu_isotope_reciprocals, Eu_isotopes = isotope_ratio(63,0.8, stravinsky=stravinsky)
 			all_reciprocals = Ba_isotope_reciprocals + Nd_isotope_reciprocals + Eu_isotope_reciprocals
 			all_reciprocals.append(c12reciprocal)
 			all_reciprocals.append(c13reciprocal)
@@ -90,7 +102,7 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory=''):
 	
 	return filestr, wavelengthrange, len(all_isotopes)
 
-def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/Sr-SMAUG/output/', atom_nums=None, elements=None, abunds=None, solar=None, lines='new'):
+def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/Sr-SMAUG/output/', atom_nums=None, elements=None, abunds=None, lines='new', stravinsky=False):
 	"""Run MOOG for each desired element linelist and splice spectra.
 
 	Inputs:
@@ -111,19 +123,21 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 	"""
 
 	# Define temporary directory to store tempfiles
-	tempdir = tempfile.mkdtemp() + '/'
-	#tempdir = '/mnt/c/Research/Sr-SMAUG/temp/' #making a temp folder so I can see what's going on
+	#tempdir = tempfile.mkdtemp() + '/'
+	#tempdir = '/mnt/c/Research/Sr-SMAUG/temp/' #so I can see what's going on
+	#tempdir = '/home/lhender6/Research/Sr-SMAUG/temp/'
+	if stravinsky:
+		#tempdir = '/home/lhender6/Research/moog17scat/temp/'
+		tempdir = '/home/lhender6/Research/Sr-SMAUG/temp/'
+	else:
+		tempdir = '/mnt/c/Research/Sr-SMAUG/temp/'
+	if not os.path.exists(tempdir):
+		os.makedirs(tempdir)
 
-	# Define list of linelists
-	# if lines == 'new':
-	# 	linelists = np.array(['Mn47394783_new','Mn4823','Mn54075420_new','Mn55165537','Mn60136021','Mn6384','Mn6491'])
-	# elif lines == 'old':
-	# 	linelists = np.array(['linelist_Mn47544762','linelist_Mn4783','linelist_Mn4823','linelist_Mn5394','linelist_Mn5537','linelist_Mn60136021']) 
-	
 	spectrum  = []
 
 	# Create identifying filename (including all parameters + linelist used)
-	name = getAtm(temp, logg, fe, alpha, directory='') # Add all parameters to name
+	name, shortfile = getAtm(temp, logg, fe, alpha, directory='') # Add all parameters to name
 	#print('name:',name)
 
 	# Add the new elements to filename, if any
@@ -141,10 +155,30 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 				elementstr	= elementname + '_' + '{:02}'.format(abund)
 
 			name = name + elementstr
-	#print('name:',name)
 
 	# Create *.atm file (for use with each linelist)
-	atmfile = writeAtm(temp, logg, fe, alpha, atom_nums=atom_nums, elements=elements, abunds=abunds, solar=solar, dir=tempdir)
+	# Solar abundances from Asplund et al. 2009
+	all_solar = [12.00,10.93, 1.05, 1.38, 2.70, 8.43, 7.83, 8.69, 4.56, 7.93,\
+	  6.24, 7.60, 6.45, 7.51, 5.41, 7.12, 5.50, 6.40, 5.03, 6.34, 3.15, 4.95, \
+		3.93, 5.64, 5.43, 7.50, 4.99, 6.22, 4.19, 4.56, 3.04, 3.65, 2.30, \
+			3.34, 2.54, 3.25, 2.52, 2.87, 2.21, 2.58, 1.46, 1.88,-5.00, 1.75,\
+				0.91, 1.57, 0.94, 1.71, 0.80, 2.04, 1.01, 2.18, 1.55, 2.24, 1.08,\
+					2.18, 1.10, 1.58, 0.72, 1.42, -5.00, 0.96, 0.52, 1.07, 0.30,\
+						1.10, 0.48, 0.92, 0.10, 0.84, 0.10, 0.85,-0.12, 0.85, 0.26,\
+							1.40, 1.38, 1.62, 0.92, 1.17, 0.90, 1.75, 0.65,-5.00,\
+								-5.00,-5.00,-5.00,-5.00,-5.00, 0.02, -5.00,-0.54,-5.00,-5.00,-5.00] 
+	if atom_nums is not None:
+		solar = []
+		for atom in atom_nums:
+			solar.append(all_solar[atom-1])
+	else:
+		solar = None
+	fullatmfile, atmfile = writeAtm(temp, logg, fe, alpha, atom_nums=atom_nums, elements=elements, abunds=abunds, solar=solar, dir=tempdir, stravinsky=stravinsky)
+	if stravinsky:
+		atmfile = 'temp/'+ atmfile #same length as just writing /raid/... or /home/...
+	else:
+		atmfile = 'temp/'+ atmfile
+	#atmfile = '/raid/lhender6/temp/'+ atmfile
 	#print('atmfile in run_moog:', atmfile)
 	# Loop over all linelists
 	for i in skip:
@@ -152,13 +186,17 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 		# Create *.par file
 		parname = name + '_' + linelists[i][-8:-4]
 		#print('parname:', parname)
-		parfile, wavelengthrange, nisotopes = createPar(parname, atom_nums, logg, atmfile, linelists[i], directory=tempdir)
+		parfile, wavelengthrange, nisotopes = createPar(parname, atom_nums, logg, atmfile, linelists[i], directory=tempdir, stravinsky=stravinsky)
 		#print('parfile:', parfile)
-		#parfile = '/mnt/c/Research/Sr-SMAUG/temp/parfile.par'
+		#parfile = '/mnt/c/Research/Sr-SMAUG/temp/myparfile.par'
 
 
 		# Run MOOG
-		p = subprocess.Popen(['./MOOG', parfile], cwd='/mnt/c/Research/moog17scat/', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		if stravinsky:
+			p = subprocess.Popen(['/raid/moog/moog17scat/MOOG', parfile], cwd='/home/lhender6/Research/Sr-SMAUG/', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			#p = subprocess.Popen(['./MOOG', parfile], cwd='/home/lhender6/Research/moog17scat/', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		else:
+			p = subprocess.Popen(['/mnt/c/Research/moog17scat/MOOG', parfile], cwd='/mnt/c/Research/Sr-SMAUG/', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		#print('MOOG is running')
 
 
@@ -166,12 +204,14 @@ def runMoog(temp, logg, fe, alpha, linelists, skip, directory='/mnt/c/Research/S
 		p.communicate()
 
 		# Create arrays of wavelengths and fluxes
-		outfile = tempdir+'/'+parname+'.out2'
-
+		#outfile = tempdir+'/'+parname+'.out2'
+		outfile = tempdir+parname+'.out2'
+		#print('outfile2:',outfile)
 		wavelength = np.linspace(wavelengthrange[0],wavelengthrange[1],math.ceil((wavelengthrange[1]-wavelengthrange[0])/0.02), endpoint=True)
 		skiprows = np.arange(nisotopes+2)
 		skiprows = np.append(skiprows,-1)
 		data = pandas.read_csv(outfile,skiprows=skiprows, delimiter=' ').to_numpy() #skiprows=[0,1,-1], delimiter=' ').to_numpy()
+		#print('got the data')
 		flux = data[~np.isnan(data)][:-1]
 
 		spectrum.append([1.-flux, wavelength])

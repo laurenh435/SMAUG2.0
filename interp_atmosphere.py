@@ -167,10 +167,11 @@ def getAtm(temp, logg, fe, alpha, directory):
 		#directory = directory+'/'
 
 	filestr	= directory + filebase + fepart + alphapart
+	shortfile = filebase + fepart + alphapart
 
-	return filestr
+	return filestr, shortfile
 
-def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmospheres/'):
+def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmospheres/', stravinsky=False):
 	"""Read file from grid.
 
 	Inputs:
@@ -195,20 +196,34 @@ def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmosph
 	directory	= inputdir + 't' + str(tempnew) + '/g_' + '{:02}'.format(loggnew) + '/' 
 
 	# Atmosphere to read
-	if inputdir == '/mnt/c/SpectraGrids/grid7/atmospheres/':
-		filestr = getAtm(temp, logg, fe, alpha, directory) + '.atm'
-		contents = np.genfromtxt(filestr, skip_header=3, max_rows=72, usecols=None, autostrip=True)
-
-	else: #if inputdir == '/mnt/c/Research/SMAUG/gridie/bin/':
-		filestr = getAtm(temp, logg, fe, alpha, directory) + '.bin.gz' 
-		with gzip.open(filestr, 'rb') as f:
-			bstring = f.read()
-			contents = np.fromstring(bstring, dtype=np.float32)
-			f.close()
+	if stravinsky:
+		if inputdir == '/raid/grid7/atmospheres/':
+			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
+			filestr = filestr + '.atm'
+			contents = np.genfromtxt(filestr, skip_header=3, max_rows=72, usecols=None, autostrip=True)
+		else: #if inputdir == '/raid/gridie/bin/':
+			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
+			filestr = filestr + '.bin.gz' 
+			with gzip.open(filestr, 'rb') as f:
+				bstring = f.read()
+				contents = np.fromstring(bstring, dtype=np.float32)
+				f.close()
+	else:
+		if inputdir == '/mnt/c/SpectraGrids/grid7/atmospheres/':
+			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
+			filestr = filestr + '.atm'
+			contents = np.genfromtxt(filestr, skip_header=3, max_rows=72, usecols=None, autostrip=True)
+		else: #if inputdir == '/mnt/c/Research/SMAUG/gridie/bin/':
+			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
+			filestr = filestr + '.bin.gz' 
+			with gzip.open(filestr, 'rb') as f:
+				bstring = f.read()
+				contents = np.fromstring(bstring, dtype=np.float32)
+				f.close()
 
 	return contents
 
-def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGrids/grid7/atmospheres/'):
+def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGrids/grid7/atmospheres/', stravinsky=False):
 	"""Interpolate atmosphere from grid of atmospheres.
 
     Inputs:
@@ -324,7 +339,7 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 				for n in range(nAlpha):
 
 					# Read in grid point (atmosphere file)
-					iflux = readAtm(tempInterval[i],loggInterval[j],feInterval[m],alphaInterval[n],inputdir=griddir) #[:,0]
+					iflux = readAtm(tempInterval[i],loggInterval[j],feInterval[m],alphaInterval[n], inputdir=griddir, stravinsky=stravinsky) #[:,0]
 
 					# Compute weighted sum of grid points
 					## If first iteration, initialize flux as weighted value of lowest grid point 
@@ -350,7 +365,7 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 
 	return flux
 
-def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None):
+def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None, stravinsky=False):
 	"""Create *.atm file
 
     Inputs:
@@ -368,19 +383,23 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
     """
 
 	# Atmosphere to write
-	filestr = getAtm(temp, logg, fe, alpha, dir)
+	filestr, shortfile = getAtm(temp, logg, fe, alpha, dir)
 	filestr = filestr[:-4] # Remove '.atm' (in case additional elements need to be added to name)
+	shortfile = shortfile[:-4]
 	printstr = str(temp) + './' + ('%.2f' % float(logg)) + '/' + ('%5.2f' % float(fe)) + '/' + ('%5.2f' % float(alpha))
 
 	# Check if file already exists
 	exists, readytowrite = checkFile(filestr+'.atm', overridecheck=False)
 	if exists:
-		return filestr+'.atm'
+		return filestr+'.atm', shortfile+'.atm'
 
 	else:
 		# Get atmosphere data
 		#####################
-		atmosphere = interpolateAtm(temp,logg,fe,alpha)
+		if stravinsky:
+			atmosphere = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/grid7/atmospheres/',stravinsky=stravinsky)
+		else:
+			atmosphere = interpolateAtm(temp,logg,fe,alpha,stravinsky=stravinsky)
 		#print('parameters for atm file',temp,logg,fe,alpha)
 
 		# Header text
@@ -438,6 +457,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 					elementstr	= elementname + '_' + '{:02}'.format(abund)
 
 				filestr = filestr + elementstr
+				shortfile = shortfile + elementstr
 
 		# Create final footer by adding NMOL footer to NATOMS footer
 		footertxt = str( atomstxt +
@@ -451,4 +471,4 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 			fmt=['%10.9E','%9.1f','%10.4E','%10.4E','%10.4E','%10.4E','%10.4E'],
 			footer=footertxt, comments='')
 
-		return filestr+'.atm'
+		return filestr+'.atm', shortfile+'.atm'

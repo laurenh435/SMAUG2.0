@@ -29,7 +29,7 @@ import scipy.optimize
 import chi_sq
 from make_plots import make_plots
 
-def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_num, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, membercheck=None, memberlist=None, velmemberlist=None):
+def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_num, startstar=0, globular=False, lines='new', plots=False, wvlcorr=True, stravinsky=False, membercheck=None, memberlist=None, velmemberlist=None):
 	""" Measure abundances from a FITS file.
 
 	Inputs:
@@ -61,7 +61,10 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 	if globular:
 		outputname = '/mnt/c/Research/glob/'+galaxyname+'/'+slitmaskname+'.csv'
 	else:
-		outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now - I suppose there will be a separate one for each element?
+		if stravinsky:
+			outputname = '/home/lhender6/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv'
+		else:
+			outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now - I suppose there will be a separate one for each element?
 
 	# Open new file
 	if startstar<1:
@@ -95,7 +98,13 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 	RA, Dec = open_obs_file(filename, coords=True)
 
 	# Make line lists for the element of interest
-	linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element)
+	if stravinsky:
+		linelists, linegaps, elementlines = split_list('/home/lhender6/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
+	else:
+		linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
+	# elementlines.pop(0)
+	# linegaps.pop(0)
+	# linelists.pop(0)
 	print('element lines:', elementlines)
 	print('line gaps:',linegaps)
 	#split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element) -- for s-process elements
@@ -124,7 +133,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 
 			# Run optimization code
 			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], \
-			     Dec[i], element, atom_num, linelists, linegaps, elementlines, plot=True)
+			     Dec[i], element, atom_num, linelists, linegaps, elementlines, plot=True, stravinsky=stravinsky)
 			best_elem, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
 
 		except Exception as e:
@@ -140,7 +149,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 
 	return
 
-def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False):
+def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, element, startstar=0, globular=False, stravinsky=False):
 	""" Plot chisq contours for stars whose [X/H] abundances have already been measured.
 
 	Inputs:
@@ -158,7 +167,10 @@ def make_chisq_plots(filename, paramfilename, galaxyname, slitmaskname, element,
 	if globular:
 		file = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname+'.csv'
 	else:
-		file = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now
+		if stravinsky:
+			file = '/home/lhender6/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now
+		else:
+			file = '/mnt/c/Research/Spectra/Sr-SMAUGoutput/'+slitmaskname+element+'.csv' #using this for now
 
 	name  = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=0, dtype='str')
 	elem    = np.genfromtxt(file, delimiter='\t', skip_header=1, usecols=8)
@@ -247,7 +259,7 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, eleme
 		f.write('Star'+'\t'+'Line'+'\t'+'redChiSq (best['+element+'/H])'+'\t'+'redChiSq (best['+element+'/H]+0.15)'+'\t'+'redChiSq (best['+element+'/H]-0.15)'+'\n')
 
 	# Plot spectra for each star
-	for i in range(startstar, 1): #ended at Nstars
+	for i in range(startstar, 3): #ended at Nstars
 
 		try:
 
@@ -307,8 +319,10 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, eleme
 	return
 
 def main():
-	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr', atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True)
-
+	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
+	   atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True, stravinsky=False)
+	# run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
+	#    atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True, stravinsky=True)
 
     
 if __name__ == "__main__":

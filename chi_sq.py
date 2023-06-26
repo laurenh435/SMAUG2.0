@@ -33,7 +33,7 @@ from make_plots import make_plots
 class obsSpectrum:
 
 	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element,\
-	       atom_num, linelists, linegaps, elementlines, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None):
+	       atom_num, linelists, linegaps, elementlines, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None, stravinsky=False):
 
 		# Observed star
 		self.obsfilename 	= obsfilename 	# File with observed spectra
@@ -47,7 +47,8 @@ class obsSpectrum:
 		self.atom_num       = atom_num      # atomic number of the element you want the abundances of
 		self.linelists      = linelists     # list of line list file names for MOOG
 		self.linegaps       = linegaps
-		self.elementlines   = elementlines    
+		self.elementlines   = elementlines
+		self.stravinsky     = stravinsky    
 
 		# If observed spectrum comes from moogify file (default), open observed file and continuum normalize as usual
 		if obsspecial is None:
@@ -56,7 +57,10 @@ class obsSpectrum:
 			if self.globular:
 				self.outputname = '/raid/madlr/glob/'+galaxyname+'/'+slitmaskname
 			else:
-				self.outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput' #'/raid/madlr/dsph/'+galaxyname+'/'+slitmaskname
+				if self.stravinsky:
+					self.outputname = '/home/lhender6/Research/Spectra/Sr-SMAUGoutput'
+				else:
+					self.outputname = '/mnt/c/Research/Spectra/Sr-SMAUGoutput' #'/raid/madlr/dsph/'+galaxyname+'/'+slitmaskname
 
 			# Open observed spectrum
 			self.specname, self.obswvl, self.obsflux, self.ivar, self.dlam, self.zrest = open_obs_file(self.obsfilename, retrievespec=self.starnum)
@@ -84,7 +88,8 @@ class obsSpectrum:
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
 			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
-										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines)
+										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha,\
+											dlam=self.dlam, lines=self.lines, stravinsky=self.stravinsky)
 
 			if plot:
 				# Plot spliced synthetic spectrum
@@ -97,7 +102,7 @@ class obsSpectrum:
 			# Compute continuum-normalized observed spectrum
 			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, \
 						   sigmaclip=True, specname=self.specname, outputname=self.outputname)
-			
+			print('normalized spectrum')
 			# Get rid of lines outside of spectrum range
 			# badspots_blue = np.where(self.obsflux_norm[0:2000] < 0)
 			# blue_cutoff = self.obswvl[badspots_blue][-1]
@@ -181,7 +186,8 @@ class obsSpectrum:
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
 			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
-										   self.linegaps, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam, lines=self.lines, hires=True)
+										   self.linegaps, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam,\
+											lines=self.lines, hires=True, stravinsky=self.stravinsky)
 
 			# Compute continuum-normalized observed spectrum
 			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, specname=self.specname, outputname=self.outputname, hires=True)
@@ -256,7 +262,8 @@ class obsSpectrum:
 		# Compute synthetic spectrum
 		print('Computing synthetic spectrum with parameters: ', elem) #, dlam)
 		synth = runMoog(temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, linelists=self.linelists, skip=self.skip,\
-		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], solar=[5.43], lines=self.lines)
+		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], lines=self.lines, stravinsky=self.stravinsky)
+		#print('got synth!')
 		# Loop over each line
 		synthflux = []
 		for i in range(len(self.skip)):
@@ -267,7 +274,10 @@ class obsSpectrum:
 			# Smooth each region of synthetic spectrum to match each region of continuum-normalized observed spectrum
 
 			# uncomment this if dlam is not a fitting parameter
-			newsynth = get_synth(self.obswvl_fit[self.skip[i]], self.obsflux_fit[self.skip[i]], self.ivar_fit[self.skip[i]], self.dlam_fit[self.skip[i]], synth=synthregion)
+			#print('trying to get new synth')
+			newsynth = get_synth(self.obswvl_fit[self.skip[i]], self.obsflux_fit[self.skip[i]], self.ivar_fit[self.skip[i]],\
+			 self.dlam_fit[self.skip[i]], synth=synthregion, stravinsky=self.stravinsky)
+			#print('got new synth')
 
 			# uncomment this if dlam is a fitting parameter
 			#newsynth = get_synth(self.obswvl_fit[i], self.obsflux_fit[i], self.ivar_fit[i], dlam, synth=synthregion)

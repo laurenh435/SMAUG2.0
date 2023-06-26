@@ -14,13 +14,13 @@ class element:
         self.Ns = []
         self.Nr = []
 
-def isotope_ratio(atom_num, star_sfrac):
+def isotope_ratio(atom_num, star_sfrac, stravinsky=False):
     '''given an element and the fraction of that element created
     by the s-process, return a list of what fraction of that element is 
     each isotope
     star_sfrac = between 0 and 1
     '''
-    objs, Z_list = readTable()
+    objs, Z_list = readTable(stravinsky=stravinsky)
     index = np.where(np.array((Z_list)) == atom_num)[0][0]
     stot = np.sum(objs[index].Ns)
     rtot = np.sum(objs[index].Nr)
@@ -55,10 +55,13 @@ def isotope_ratio(atom_num, star_sfrac):
     
     return iso_reciprocal, moog_isotopes
 
-def readTable():
+def readTable(stravinsky=False):
     ''' read in table 1 from Sneden+ 2008
     '''
-    tablepath = '/mnt/c/Research/Sr-SMAUG/isotope_table.txt'
+    if stravinsky:
+        tablepath = '/home/lhender6/Research/Sr-SMAUG/isotope_table.txt'
+    else:
+        tablepath = '/mnt/c/Research/Sr-SMAUG/isotope_table.txt'
     tablelines = read_file(tablepath, header=True)
     element_symbols = []
     Z_list = []
