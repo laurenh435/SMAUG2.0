@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import os
 import sys
 import numpy as np
+import numpy.ma as ma
 import math
 from run_moog import runMoog
 from smooth_gauss import smooth_gauss
@@ -25,9 +26,10 @@ import subprocess
 from astropy.io import fits
 import pandas
 import scipy.optimize
-from wvl_corr import fit_wvl
+from wvl_corr_new import do_wvl_corr
 import csv
 from make_plots import make_plots
+#from poly_wvl_corr import fit_wvl2
 
 # Observed spectrum
 class obsSpectrum:
@@ -38,7 +40,7 @@ class obsSpectrum:
 		# Observed star
 		self.obsfilename 	= obsfilename 	# File with observed spectra
 		self.paramfilename  = paramfilename # File with parameters of observed spectra
-		self.starnum 		= starnum		# Star number
+		self.starnum 		= starnum		# Star number (index)
 		self.galaxyname 	= galaxyname 	# Name of galaxy
 		self.slitmaskname 	= slitmaskname 	# Name of slitmask
 		self.globular 		= globular		# Parameter marking if globular cluster
@@ -70,7 +72,33 @@ class obsSpectrum:
 			# Get measured parameters from observed spectrum
 			self.temp, self.logg, self.fe, self.alpha, self.fe_err = open_obs_file(self.paramfilename, self.starnum, \
 									  specparams=True, objname=self.specname, inputcoords=[RA, Dec])
-			print('got measured parameters')
+			
+			# Calculate log(L/Lsun) to get [C/Fe]
+			if stravinsky:
+				chfile = '/home/lhender6/Research/Spectra/'+self.slitmaskname+'/moogifych.fits.gz'
+			else:
+				chfile = '/mnt/c/Research/Spectra/'+self.slitmaskname+'/moogifych.fits.gz'
+			hdu1 = fits.open(chfile)
+			chdata = hdu1[1].data
+			chnames = chdata['OBJNAME']
+			chnames = list(chnames)
+			if str(self.specname) in chnames:
+				chindex = chnames.index(str(self.specname))
+				print('carbon in moogifych!')
+				self.carbon = chdata['CFE'][chindex] #[C/Fe]
+			else:
+				lum = (4*np.pi*6.6743*(10**(-8))*0.75*1.99*(10**(33))*5.6704*(10**(-5))*self.temp**4)/(10**self.logg)
+				logl = np.log10(lum/(3.846*(10**(33))))
+				print('luminosity test:')
+				print('L/Lsun',lum/(3.846*(10**(33))) )
+				print('logl',logl)
+				if logl <= 1.6:
+					self.carbon = 0.12 #[C/Fe]
+				else:
+					self.carbon = 1.42 - 0.82*logl
+			print('carbon:', self.carbon)
+
+			#print('got measured parameters')
 			if specialparams is not None:
 				self.temp = specialparams[0]
 				self.logg = specialparams[1]
@@ -87,9 +115,9 @@ class obsSpectrum:
 				plt.close()
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
-			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
+			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, chipgap = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
 										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha,\
-											dlam=self.dlam, lines=self.lines, stravinsky=self.stravinsky)
+											dlam=self.dlam, carbon=self.carbon, lines=self.lines, stravinsky=self.stravinsky)
 
 			if plot:
 				# Plot spliced synthetic spectrum
@@ -102,7 +130,7 @@ class obsSpectrum:
 			# Compute continuum-normalized observed spectrum
 			self.obsflux_norm, self.ivar_norm = divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, \
 						   sigmaclip=True, specname=self.specname, outputname=self.outputname)
-			print('normalized spectrum')
+			#print('normalized spectrum')
 			# Get rid of lines outside of spectrum range
 			# badspots_blue = np.where(self.obsflux_norm[0:2000] < 0)
 			# blue_cutoff = self.obswvl[badspots_blue][-1]
@@ -135,6 +163,55 @@ class obsSpectrum:
 				plt.close()
 				np.savetxt(self.outputname+'/'+self.specname+self.element+'_obsnormalized.txt',np.asarray((self.obswvl,self.obsflux_norm)).T)
 
+				obsfluxnorm_mask = np.concatenate((ma.masked_array(np.array(self.obsflux_norm)[:chipgap],mask[0]), ma.masked_array(np.array(self.obsflux_norm)[chipgap:], mask[1])))
+				full_obswvlmask = np.concatenate((obswvlmask[0],obswvlmask[1]))
+				full_synthfluxmask = np.concatenate((synthfluxmask[0],synthfluxmask[1]))
+				full_ivarmask = np.concatenate((ma.masked_array(np.array(self.ivar_norm)[:chipgap],mask[0]), ma.masked_array(np.array(self.ivar_norm)[chipgap:], mask[1])))
+				# plt.figure()
+				# plt.plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', alpha=0.5, label='obs')
+				# plt.plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.5, label='synth')
+				# plt.xlim((4100,6500)) #range where spectrum is normalized
+				# plt.ylim((0.0,1.2))
+				# plt.legend(loc='best')
+				# plt.savefig(self.outputname+'/'+self.specname+self.element+'_masked_obs_synth.png')
+				# plt.close()
+
+				# plt.figure()
+				# plt.plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', alpha=0.5, label='obs')
+				# plt.plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.5, label='synth')
+				# plt.xlim((4100,4600))
+				# plt.ylim((0.0,1.2))
+				# plt.legend(loc='best')
+				# plt.savefig(self.outputname+'/'+self.specname+self.element+'_masked_obs_synthBLUE.png')
+				# plt.close()
+
+				# plt.figure()
+				# #plt.plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', label='obs')
+				# plt.errorbar(full_obswvlmask, obsfluxnorm_mask, yerr=np.power(full_ivarmask,-0.5), color='deepskyblue', alpha=0.7, fmt='o', markersize=6, label='obs', zorder=3)
+				# plt.plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.9, label='synth')
+				# plt.xlim((4200,4230))
+				# plt.ylim((0.0,1.2))
+				# plt.legend(loc='best')
+				# plt.savefig(self.outputname+'/'+self.specname+self.element+'_masked_obs_synth4215.png')
+				# plt.close()
+
+				fig, axs = plt.subplots(2,2, figsize=(25,25))
+				axs[0,0].plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', alpha=0.5, label='obs')
+				axs[0,0].plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.5, label='synth')
+				axs[0,0].set_xlim((4100,6500)) #range where spectrum is normalized
+				axs[0,0].set_ylim((0.0,1.2))
+				axs[0,0].legend(loc='best')
+				axs[0,1].plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', alpha=0.5)
+				axs[0,1].plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.5)
+				axs[0,1].set_xlim((4100,4600))
+				axs[0,1].set_ylim((0.0,1.2))
+				axs[1,0].errorbar(full_obswvlmask, obsfluxnorm_mask, yerr=np.power(full_ivarmask,-0.5), color='deepskyblue', alpha=0.7, fmt='o', markersize=6, zorder=3)
+				axs[1,0].plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.9)
+				axs[1,0].set_xlim((4200,4230))
+				axs[1,0].set_ylim((0.0,1.2))
+				fig.savefig(self.outputname+'/'+self.specname+self.element+'_normalization.png')
+				plt.close()
+
 			if wvlcorr:
 				print('Doing wavelength correction...')
 
@@ -144,8 +221,10 @@ class obsSpectrum:
 					contdivstd[self.ivar_norm > 0] = np.sqrt(np.reciprocal(self.ivar_norm[self.ivar_norm > 0]))
 
 					# Wavelength correction
-					self.obswvl = fit_wvl(self.obswvl, self.obsflux_norm, contdivstd, self.dlam, 
-						self.temp, self.logg, self.fe, self.alpha, self.specname, self.outputname+'/')
+					#self.obswvl = fit_wvl(self.obswvl, self.obsflux_norm, contdivstd, self.dlam, 
+						#self.temp, self.logg, self.fe, self.alpha, self.specname, self.outputname+'/')
+					#self.obswvl = self.fit_wvl2() #my version that totally doesn't work lol
+					self.obswvl = do_wvl_corr(self.obswvl, self.obsflux_norm, self.ivar_norm, self.outputname, self.specname, self.dlam)
 
 					print('Done with wavelength correction!')
 
@@ -153,9 +232,11 @@ class obsSpectrum:
 					print(repr(e))
 					print('Couldn\'t complete wavelength correction for some reason.')
 
-			# Crop observed spectrum into regions around Mn lines
+			# Crop observed spectrum into regions around lines
 			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
 												        self.ivar_norm, self.dlam, self.element, self.linegaps, lines=self.lines)
+			if ((self.element == 'Sr') & (self.skip == [1])).all():
+				raise ValueError('Only Sr4607 available! Skipping #'+str(self.starnum))
 
 		# Else, check if we need to open a hi-res file to get the spectrum
 		elif hires is not None:
@@ -185,7 +266,7 @@ class obsSpectrum:
 			print('Redshift: ', self.zrest)
 
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
-			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
+			synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, chipgap = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
 										   self.linegaps, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam,\
 											lines=self.lines, hires=True, stravinsky=self.stravinsky)
 
@@ -241,6 +322,185 @@ class obsSpectrum:
 		self.ivar_final = np.hstack((self.ivar_fit[self.skip]))
 		#self.dlam_final = np.hstack((self.dlam_fit[self.skip]))
 		#print(len(self.obswvl_final))
+
+	# START POSSIBLE WVL CORRECTION STUFF #################################
+
+	# def wvl_chisq(self, params, synth_flux=None):
+	# 	'''Apply polynomial fit to original wavelength values and calculate chi square.
+
+	# 	make new wavelength array. this corresponds one to one with obsflux array
+	# 	get synth flux and wvl like in continuum_div
+	# 	linearly (?) interpolate obsflux array to be at wavelengths of synth array
+	# 	calculate chisq with the synth flux and interpolated observed flux
+	# 	return chi sq, want to minimize
+	# 	'''
+	# 	#synth_flux = get_synth(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, synth=None, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, stravinsky=self.stravinsky)
+	# 	#wvl_new = params[0] + params[1]*self.obswvl + params[2]*(self.obswvl**2)
+	# 	wvl_new = params[0] + params[1]*self.obswvl + 0*(self.obswvl**2)
+	# 	obs_flux_interp = np.interp(self.obswvl,wvl_new,self.obsflux_norm)
+	# 	chisq = 0
+	# 	for i in range(1,len(synth_flux)):
+	# 		if (synth_flux[i] > 0.) and (obs_flux_interp[i] < 2) and (self.ivar_norm[i] > 0): #only account for reasonable values???
+	# 			chisq += (((obs_flux_interp[i]-synth_flux[i])**2)*self.ivar_norm[i])
+	# 	chisq = chisq/(len(synth_flux)-1.) #trying to calculate like chisq Mia uses in chisq plot function
+	# 	#print('guess:', params)
+	# 	#print('chisq:', chisq)
+
+	# 	return chisq
+
+	# def fit_wvl2(self):
+	# 	'''
+	# 	Do actual wavelength fitting.
+		
+	# 	Inputs:
+	# 	synth -- synthetic spectrum, including wavelength and flux
+	# 	wvl_0 -- original wavelength array
+	# 	'''
+	# 	#use scipy.optimize_minimize but need to figure out how to calculate chi square - then minimize chi square
+	# 	#ivar_check = np.isfinite(self.ivar_norm)
+	# 	#print('where zero',np.where(self.ivar_norm == 0)[0])
+	# 	#print(self.ivar_norm)
+	# 	synth_flux = get_synth(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, synth=None, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, stravinsky=self.stravinsky)
+	# 	#x0 = [0,1,0] #inital guess is no change to the original wavelength array
+	# 	x0 = [0,1]
+	# 	result = scipy.optimize.minimize(self.wvl_chisq,x0=x0, args=(synth_flux), bounds=((-20,20),(0.9,1.1)))
+	# 	print(result.x)
+	# 	#new_wvl = result.x[0] + result.x[1]*self.obswvl + result.x[2]*(self.obswvl**2)
+	# 	new_wvl = result.x[0] + result.x[1]*self.obswvl + 0*(self.obswvl**2)
+	# 	print('finished successfully?', result.success)
+	# 	print(result.message)
+
+	# 	# test plots
+
+
+	# 	return new_wvl
+	
+	def wvl_chisq(self, params, synth_flux=None):
+		'''Apply polynomial fit to original wavelength values and calculate chi square.
+
+		make new wavelength array. this corresponds one to one with obsflux array
+		get synth flux and wvl like in continuum_div
+		linearly (?) interpolate obsflux array to be at wavelengths of synth array
+		calculate chisq with the synth flux and interpolated observed flux
+		return chi sq, want to minimize
+		'''
+		#synth_flux = get_synth(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, synth=None, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, stravinsky=self.stravinsky)
+		#wvl_new = params[0] + params[1]*self.obswvl + params[2]*(self.obswvl**2)
+		wvl_new = params[0] + params[1]*self.obswvl + 0*(self.obswvl**2)
+		obs_flux_interp = np.interp(self.obswvl,wvl_new,self.obsflux_norm)
+		chisq = 0
+		for i in range(1,len(synth_flux)):
+			if (synth_flux[i] > 0.) and (obs_flux_interp[i] < 2) and (self.ivar_norm[i] > 0): #only account for reasonable values???
+				chisq += (((obs_flux_interp[i]-synth_flux[i])**2)*self.ivar_norm[i])
+		chisq = chisq/(len(synth_flux)-1.) #trying to calculate like chisq Mia uses in chisq plot function
+		#print('guess:', params)
+		#print('chisq:', chisq)
+
+		return chisq
+	
+	def fit_wvl2(self):
+		'''
+		Do actual wavelength fitting.
+		
+		Inputs:
+		synth -- synthetic spectrum, including wavelength and flux
+		wvl_0 -- original wavelength array
+		'''
+		#use scipy.optimize_minimize but need to figure out how to calculate chi square - then minimize chi square
+		#ivar_check = np.isfinite(self.ivar_norm)
+		#print('where zero',np.where(self.ivar_norm == 0)[0])
+		#print(self.ivar_norm)
+		synth_flux = get_synth(self.obswvl, self.obsflux_norm, self.ivar_norm, self.dlam, synth=None, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, carbon=self.carbon, stravinsky=self.stravinsky)
+		#x0 = [0,1,0] #inital guess is no change to the original wavelength array
+		x0 = [0,1]
+		result = scipy.optimize.minimize(self.wvl_chisq,x0=x0, args=(synth_flux), bounds=((-20,20),(0.9,1.1)))
+		print(result.x)
+		#new_wvl = result.x[0] + result.x[1]*self.obswvl + result.x[2]*(self.obswvl**2)
+		new_wvl = result.x[0] + result.x[1]*self.obswvl + 0*(self.obswvl**2)
+		print('finished successfully?', result.success)
+		print(result.message)
+
+		# test plots
+		plt.figure()
+		plt.plot(new_wvl, self.obsflux_norm, 'r-',label='shifted')
+		plt.plot(self.obswvl,self.obsflux_norm,'k-',label='old')
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_WVLTEST1.png')
+		plt.close()
+
+		# plt.figure()
+		# plt.plot(new_wvl, self.obsflux_norm, 'g-',label='shifted')
+		# plt.plot(self.obswvl,self.obsflux_norm,'k-',label='synth')
+		# plt.ylim([0,1.5])
+		# plt.legend(loc='best')
+		# plt.savefig(self.outputname+'/'+self.specname+'_WVLTEST2.png')
+		# plt.close()
+		
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'r-', label='obs no shift')
+		plt.plot(new_wvl, self.obsflux_norm, 'b-', label='obs shifted')
+		plt.plot(self.obswvl,synth_flux,'k-', label='synth')
+		plt.xlim([4855,4867])
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_Hbeta.png')
+		plt.close()
+
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'r-', label='obs no shift')
+		plt.plot(new_wvl, self.obsflux_norm, 'b-', label='obs shifted')
+		plt.plot(self.obswvl,synth_flux,'k-', label='synth')
+		plt.xlim([6556,6585])
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_Halpha.png')
+		plt.close()
+
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'r-', label='obs no shift')
+		plt.plot(new_wvl, self.obsflux_norm, 'b-', label='obs shifted')
+		plt.plot(self.obswvl,synth_flux,'k-', label='synth')
+		plt.xlim([4334,4346])
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_Hgamma.png')
+		plt.close()
+
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'r-', label='obs no shift')
+		plt.plot(new_wvl, self.obsflux_norm, 'b-', label='obs shifted')
+		plt.plot(self.obswvl,synth_flux,'k-', label='synth')
+		plt.xlim([5884,5904])
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_NaD.png')
+		plt.close()
+
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'r-', label='obs no shift')
+		plt.plot(new_wvl, self.obsflux_norm, 'b-', label='obs shifted')
+		plt.plot(self.obswvl,synth_flux,'k-', label='synth')
+		plt.xlim([5178,5190])
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		plt.savefig(self.outputname+'/'+self.specname+'_Clinetest.png')
+		plt.close()
+
+		templines=[4340,4861,5184,5894,6563]
+
+		plt.figure()
+		plt.plot(self.obswvl, self.obsflux_norm, 'k-', label='obs no shift')
+		plt.ylim([0,1.5])
+		plt.legend(loc='best')
+		for line in templines:
+			plt.axvspan(line-10, line+10, alpha=0.5, color='blue')
+		plt.savefig(self.outputname+'/'+self.specname+'_lines.png')
+		plt.close()
+
+		return new_wvl
+
+	# END POSSIBLE WVL CORRECTION STUFF #################################################
 
 	# Define function to minimize
 	def synthetic(self, obswvl, elem, full=True):
@@ -322,11 +582,21 @@ class obsSpectrum:
 
 		# Do minimization
 		print('Starting minimization! Initial guesses: ', params0)
-		best_elem, covar = scipy.optimize.curve_fit(self.synthetic, self.obswvl_final, self.obsflux_final, p0=[params0], sigma=np.sqrt(np.reciprocal(self.ivar_final)), epsfcn=0.01)
+		#print(len(self.ivar_final),len(self.obswvl_final),len(self.obsflux_final))
+		#recips = np.float64(np.reciprocal(self.ivar_final))
+		#print(type(recips[0]))
+		#data type test
+		# for recip in recips:
+		# 	if type(recip) is float:
+		# 		print('reciprocal list has a float')
+		best_elem, covar = scipy.optimize.curve_fit(self.synthetic, self.obswvl_final, self.obsflux_final, p0=[params0], sigma=np.sqrt(np.float64(np.reciprocal(self.ivar_final))), epsfcn=0.01)
+		#for some reason sometimes the np.reciprocal function produces floats instead of float64 so needed to add that in...
 		error = np.sqrt(np.diag(covar))
 
 		print('Answer: ', best_elem)
 		print('Error: ', error)
+		fe_ratio = best_elem - self.fe
+		print('[X/Fe]:', fe_ratio)
 
 		# Do some checks
 		if len(np.atleast_1d(best_elem)) == 1:
@@ -347,6 +617,7 @@ class obsSpectrum:
 				#finalsynthdown = self.synthetic(self.obswvl_final, best_mn[0] - error[0], best_mn[1], full=True)
 				finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], full=True)
 				finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], full=True)
+				
 
 			# Create file
 			filename = self.outputname+'/'+self.specname+self.element+'_data.csv'
@@ -413,6 +684,7 @@ class obsSpectrum:
 		#If [X/H] error is small enough, make reduced chi-sq plots
 		if elem_error[0] < 1.0:
 			for i in range(len(elem_list)):
+				#print('redchisq test',self.obswvl_final)
 				finalsynth = self.synthetic(self.obswvl_final, elem_list[i]) #, dlam)
 				chisq = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * self.ivar_final) / (len(self.obsflux_final) - 1.)
 				chisq_list[i] = chisq

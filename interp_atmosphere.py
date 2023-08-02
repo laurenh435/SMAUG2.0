@@ -90,8 +90,6 @@ def find_nearest(temp, array=None):
 		idx = (np.abs(tarray-temp)).argmin()
 		neartemp 	= tarray[idx]
 
-		return neartemp
-
 	else:
 		tarray = np.array([3500, 3600, 3700, 3800, 3900,
 					4000, 4100, 4200, 4300, 4400,
@@ -105,42 +103,42 @@ def find_nearest(temp, array=None):
 		idx = (np.abs(tarray-temp)).argmin()
 		neartemp 	= tarray[idx]
 
-		# Define output variables
-		uptemp 		= 0
-		downtemp	= 0
-		error 		= False
+	# Define output variables
+	uptemp 		= 0
+	downtemp	= 0
+	error 		= False
 
-		# If the closest grid temp is **lower** than input temp
-		if neartemp < temp:
+	# If the closest grid temp is **lower** than input temp
+	if neartemp < temp:
 
-			# Check to make sure the input temp isn't outside the grid
-			if idx == len(tarray) - 1:
-				error = True
+		# Check to make sure the input temp isn't outside the grid
+		if idx == len(tarray) - 1:
+			error = True
 
-			# If ok, then can find the closest grid temp that's **higher** than input temp
-			else:
-				downtemp = neartemp
-				uptemp 	 = tarray[idx+1]
-
-		# If the closest grid temp is **higher** than input temp
-		elif neartemp > temp:
-
-			# Check to make sure the input temp isn't outside the grid
-			if idx == 0:
-				error = True 
-
-			# If ok, then can find the closest grid temp that's **lower** than input temp
-			else:
-				downtemp = tarray[idx-1]
-				uptemp	 = neartemp
-
-		# Check if input temp is equal to one of the grid temps
+		# If ok, then can find the closest grid temp that's **higher** than input temp
 		else:
-			uptemp	 = neartemp
-			downtemp = neartemp 
+			downtemp = neartemp
+			uptemp 	 = tarray[idx+1]
 
-		# Return temperatures and error message if input temp is outside grid range
-		return uptemp, downtemp, error
+	# If the closest grid temp is **higher** than input temp
+	elif neartemp > temp:
+
+		# Check to make sure the input temp isn't outside the grid
+		if idx == 0:
+			error = True 
+
+		# If ok, then can find the closest grid temp that's **lower** than input temp
+		else:
+			downtemp = tarray[idx-1]
+			uptemp	 = neartemp
+
+	# Check if input temp is equal to one of the grid temps
+	else:
+		uptemp	 = neartemp
+		downtemp = neartemp 
+
+	# Return temperatures and error message if input temp is outside grid range
+	return uptemp, downtemp, error
 
 def getAtm(temp, logg, fe, alpha, directory):
 	"""Get path of grid file."""
@@ -171,7 +169,7 @@ def getAtm(temp, logg, fe, alpha, directory):
 
 	return filestr, shortfile
 
-def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmospheres/', stravinsky=False):
+def readAtm(temp, logg, fe, alpha, carbon=None, gridch=False, inputdir='/mnt/c/Research/SMAUG/grid7/atmospheres/', stravinsky=False):
 	"""Read file from grid.
 
 	Inputs:
@@ -181,7 +179,9 @@ def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmosph
     alpha -- [alpha/Fe]
 
     Keywords:
-    inputdir - input directory
+    carbon -- [C/Fe]
+    gridch -- whether gridch is being used - so that C abundance must be specified
+    inputdir -- input directory
     	if '/raid/grid7/atmospheres/' (default): return '.atm' file
     	if 'raid/gridie/bin/': return '.bin.gz' file
 
@@ -194,6 +194,7 @@ def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmosph
 
 	# Directory to read atmospheres from
 	directory	= inputdir + 't' + str(tempnew) + '/g_' + '{:02}'.format(loggnew) + '/' 
+	#print('readAtm directory', directory)
 
 	# Atmosphere to read
 	if stravinsky:
@@ -201,13 +202,31 @@ def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmosph
 			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
 			filestr = filestr + '.atm'
 			contents = np.genfromtxt(filestr, skip_header=3, max_rows=72, usecols=None, autostrip=True)
-		else: #if inputdir == '/raid/gridie/bin/':
+		elif inputdir == '/raid/gridch/bin/':
+			# each gridch file has 24 spectra (see [C/Fe] range below) all in a list - so need to find the right one for the carbon abundance you want
+			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
+			filestr = filestr + '.bin.gz'
+			n = 2858 # for bin. for hired, n=20001
+			acfe = np.array([-2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2, 0.4,  0.6,  0.8,  1.0,  1.4, 1.8,  2.2,  2.6,  3.0,  3.5])
+			icfe = np.where(acfe == carbon)[0]
+			if icfe.size != 1:
+				raise ValueError('[C/Fe] out of range.')
+			moogspec_ch = np.zeros(n, dtype=np.float32)
+			with gzip.open(filestr, 'rb') as f:
+				bstring = f.read()
+				full_contents = np.frombuffer(bstring, dtype=np.float32) #this has all 24 spectra [C/Fe] = -2.4-3.5
+				istart = n * icfe[0]
+				iend = istart + n
+				contents = full_contents[istart:iend]
+				f.close()
+		else:
 			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
 			filestr = filestr + '.bin.gz' 
 			with gzip.open(filestr, 'rb') as f:
 				bstring = f.read()
 				contents = np.fromstring(bstring, dtype=np.float32)
 				f.close()
+
 	else:
 		if inputdir == '/mnt/c/SpectraGrids/grid7/atmospheres/':
 			filestr, shortfile = getAtm(temp, logg, fe, alpha, directory)
@@ -223,7 +242,7 @@ def readAtm(temp, logg, fe, alpha, inputdir='/mnt/c/Research/SMAUG/grid7/atmosph
 
 	return contents
 
-def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGrids/grid7/atmospheres/', stravinsky=False):
+def interpolateAtm(temp, logg, fe, alpha, carbon=None, hgrid=False, griddir='/mnt/c/SpectraGrids/grid7/atmospheres/', gridch=False, stravinsky=False):
 	"""Interpolate atmosphere from grid of atmospheres.
 
     Inputs:
@@ -233,8 +252,10 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
     alpha 	-- [alpha/Fe]
 
     Keywords:
+    carbon  -- [C/Fe] for gridch
     hgrid 	-- if 'True', use hydrogen grids; else use normal grids for temp
     griddir -- where to get atmospheres from
+    gridch  -- whether to include [C/Fe] in the interpolation
     """
 
 	# Change input parameters to correct format for filenames
@@ -257,6 +278,22 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 		alphaUp = round_to(alphanew, 1, 'up')/10.
 		alphaDown = round_to(alphanew, 1, 'down')/10.
 
+		if gridch:
+			carbonnew = carbon*10
+			carray = 10*np.array([-2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2, 0.4,  0.6,  0.8,  1.0,  1.4, 1.8,  2.2,  2.6,  3.0,  3.5])
+			carbonUp, carbonDown, carbonError = find_nearest(carbonnew,array=carray) #Use this because array is not regular the whole way through
+			carbonUp = carbonUp/10
+			carbonDown = carbonDown/10
+			#print('carbon:', carbon, carbonUp, carbonDown)
+			if carbonUp > 3.5 or carbonDown < -2.4:
+				raise ValueError('[C/Fe] = '+ str(carbon) + ' is out of range!')
+
+		# print('Up and Down values in interpolateAtm')
+		# print('temp:',temp, tempUp,tempDown)
+		# print('logg:',logg, loggUp,loggDown)
+		# print('alpha:', alpha, alphaUp,alphaDown)
+
+
 		# Check that points are within range of grid
 		if tempError:
 			raise ValueError('T = ' + str(temp) + ' is out of range!')
@@ -269,6 +306,7 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 
 		elif alphaUp > 1.2 or alphaDown < -0.8:
 			raise ValueError('[alpha/Fe] = ' + str(alpha) + ' is out of range!')
+	
 
 		# Grid isn't uniform, so do additional checks to make sure points are within range of grid
 		elif ((loggUp < 0.5) or (loggDown < 0.5)) and ((tempUp >= 7000) or (tempDown >= 7000)):
@@ -330,25 +368,54 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 		alphaInterval	= np.array([alphaDown, alphaUp])
 		alphaDelta		= np.absolute(np.array([alphaUp, alphaDown]) - alpha)
 		nAlpha 			= 2
+	
+	if gridch:
+		if carbonUp == carbonDown:
+			carbonInterval	= np.array([carbon])
+			carbonDelta 		= np.array([1])
+			ncarbon	 		= 1
+		else:
+			carbonInterval	= np.array([carbonDown, carbonUp])
+			carbonDelta		= np.absolute(np.array([carbonUp, carbonDown]) - carbon)
+			ncarbon         = 2
 
 	# Do interpolation!
 	###################
-	for i in range(nTemp):
-		for j in range(nLogg):
-			for m in range(nFe):
-				for n in range(nAlpha):
+	if gridch: #include [C/Fe] in interpolation
+		for i in range(nTemp):
+			for j in range(nLogg):
+				for m in range(nFe):
+					for n in range(nAlpha):
+						for p in range(ncarbon):
 
-					# Read in grid point (atmosphere file)
-					iflux = readAtm(tempInterval[i],loggInterval[j],feInterval[m],alphaInterval[n], inputdir=griddir, stravinsky=stravinsky) #[:,0]
+							# Read in grid point (atmosphere file)
+							iflux = readAtm(tempInterval[i],loggInterval[j],feInterval[m],alphaInterval[n], carbon=carbonInterval[p], gridch=True, inputdir=griddir, stravinsky=stravinsky) #[:,0]
 
-					# Compute weighted sum of grid points
-					## If first iteration, initialize flux as weighted value of lowest grid point 
-					if (i==0) & (j==0) & (m==0) & (n==0):
-						flux = tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n] * iflux
+							# Compute weighted sum of grid points
+							## If first iteration, initialize flux as weighted value of lowest grid point 
+							if (i==0) & (j==0) & (m==0) & (n==0) & (p==0):
+								flux = tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n]*carbonDelta[p] * iflux
 
-					## Else, start adding weighted values of other grid points
-					else:
-						flux = flux + tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n] * iflux
+							## Else, start adding weighted values of other grid points
+							else:
+								flux = flux + tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n]*carbonDelta[p] * iflux
+	else:
+		for i in range(nTemp):
+			for j in range(nLogg):
+				for m in range(nFe):
+					for n in range(nAlpha):
+
+						# Read in grid point (atmosphere file)
+						iflux = readAtm(tempInterval[i],loggInterval[j],feInterval[m],alphaInterval[n], inputdir=griddir, stravinsky=stravinsky) #[:,0]
+
+						# Compute weighted sum of grid points
+						## If first iteration, initialize flux as weighted value of lowest grid point 
+						if (i==0) & (j==0) & (m==0) & (n==0):
+							flux = tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n] * iflux
+
+						## Else, start adding weighted values of other grid points
+						else:
+							flux = flux + tempDelta[i]*loggDelta[j]*feDelta[m]*alphaDelta[n] * iflux
 
 	# Normalize by dividing by correct intervals
 	quotient = 1.0
@@ -360,6 +427,9 @@ def interpolateAtm(temp, logg, fe, alpha, hgrid=False, griddir='/mnt/c/SpectraGr
 		quotient = quotient * (feUp - feDown)
 	if nAlpha == 2:
 		quotient = quotient * (alphaUp - alphaDown)
+	if gridch:
+		if ncarbon == 2:
+			quotient = quotient * (carbonUp - carbonDown)
 
 	flux = flux/(quotient*1.0)
 
@@ -423,7 +493,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 					'\n      16      ' + ('%5.2f' % float(7.12 + fe + alpha)) +
 					'\n      18      ' + ('%5.2f' % float(6.40 + fe + alpha)) +
 					'\n      20      ' + ('%5.2f' % float(6.34 + fe + alpha)) +
-					'\n      22      ' + ('%5.2f' % float(4.95 + fe + alpha)) )
+					'\n      22      ' + ('%5.2f' % float(4.95 + fe + alpha)) ) #solar values plus fe and alpha for the star
 
 		# If not adding any elements, use default NATOMS footer
 		if atom_nums is None:

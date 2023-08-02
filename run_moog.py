@@ -61,11 +61,6 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory='', stra
 			file.write('lines_in       '+'\''+linelist+'\''+'\n')
 			#file.write('lines_in       '+'\'/raid/lhender6/lines/Sr4215.txt\''+'\n')
 			file.write('strong        1'+'\n') #changed this to 1 so that MOOG will take a strong line list
-			# if stravinsky:
-			# 	#file.write('stronglines_in '+'\'/home/lhender6/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n')
-			# 	file.write('stronglines_in '+'\'full_linelists/blue.strong\''+'\n')
-			# else:
-			# 	#file.write('stronglines_in '+'\'/mnt/c/Research/Sr-SMAUG/full_linelists/blue.strong\''+'\n')
 			file.write('stronglines_in '+'\'full_linelists/blue.strong\''+'\n')
 			file.write('atmosphere    1'+'\n')
 			file.write('molecules     1'+'\n')
@@ -76,7 +71,7 @@ def createPar(name, atom_nums, logg, atmfile='', linelist='', directory='', stra
 			file.write('plot          0'+'\n')
 			file.write('synlimits'+'\n')
 			file.write('  '+'{0:.3f}'.format(wavelengthrange[0])+' '+'{0:.3f}'.format(wavelengthrange[1])+'  0.02  1.00'+'\n')
-			# Calculate C12 C13 ratio to get isotope abundances for CH and CN
+			# Calculate C12 C13 ratio to get isotope abundances for CH and CN - calculation from Kirby+ 2015
 			if logg <= 2.0:
 				c12c13 = 6.0
 			elif logg > 2.7:

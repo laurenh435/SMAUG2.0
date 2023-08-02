@@ -102,15 +102,16 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, atom_n
 		linelists, linegaps, elementlines = split_list('/home/lhender6/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
 	else:
 		linelists, linegaps, elementlines = split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
-	# elementlines.pop(0)
-	# linegaps.pop(0)
-	# linelists.pop(0)
+	if element == 'Sr': #synth grids don't go below 4100 A, so get rid of Sr 4077 line for now
+		elementlines.pop(0)
+		linegaps.pop(0)
+		linelists.pop(0)
 	print('element lines:', elementlines)
 	print('line gaps:',linegaps)
 	#split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element) -- for s-process elements
 
 	# Run chi-sq fitting for all stars in file
-	for i in range(startstar, 10): #range(startstar, Nstars)
+	for i in range(7, 8): #range(startstar, Nstars)
 
 		try:
 			# Get metallicity of star to use for initial guess
@@ -319,10 +320,10 @@ def plot_fits_postfacto(filename, paramfilename, galaxyname, slitmaskname, eleme
 	return
 
 def main():
-	run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
-	   atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True, stravinsky=False)
-	# run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
-	#    atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True, stravinsky=True)
+	# run_chisq('/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', '/mnt/c/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
+	#    atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=True, stravinsky=False)
+	run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', 'scl', 'bscl1', 'Sr',\
+	   atom_num=38, startstar=0, globular=False, lines='new', plots=True, wvlcorr=False, stravinsky=True)
 
     
 if __name__ == "__main__":

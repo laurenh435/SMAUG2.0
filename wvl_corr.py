@@ -33,7 +33,7 @@ def return_hydrogen_synth(temp,logg,fe,alpha,dlam,wvl_radius=10):
 	# Get subtitle
 	hteff  = find_nearest(temp, array=np.array([4500, 5000, 5500, 6000]))
 	hlogg  = find_nearest(logg, array=np.array([0.5, 1.0, 1.5, 2.0, 2.5]))
-	hfeh   = find_nearest(logg, array=np.array([-2.0, -1.0]))
+	hfeh   = find_nearest(fe, array=np.array([-2.0, -1.0])) #find_nearest(logg, array=np.array([-2.0, -1.0]))
 	halpha = find_nearest(alpha, array=np.array([0.0]))
 	subtitle = r'Synth: T$_{eff}$=%i, log(g)=%.2f, [Fe/H]=%.2f, [$\alpha$/Fe]=%.2f'%(hteff, hlogg, hfeh, halpha)
 
@@ -44,7 +44,7 @@ def return_hydrogen_synth(temp,logg,fe,alpha,dlam,wvl_radius=10):
 	wvly  = np.around(wvly,2)
 	# Relative flux
 	fluxy = interpolateAtm(hteff, hlogg, hfeh, halpha, hgrid=True, griddir='/raid/gridch/synths/')
-	print('gridch flux length:',len(fluxy))
+	#print('gridch flux length:',len(fluxy))
 	relfluxy = scipy.ndimage.filters.gaussian_filter(1.0-fluxy,gauss_sigma)
 	n = int(len(relfluxy)/24)
 	relfluxy = relfluxy[n*12:n*13]
@@ -56,12 +56,13 @@ def return_hydrogen_synth(temp,logg,fe,alpha,dlam,wvl_radius=10):
 	# Relative flux
 	#fluxb = interpolateAtm(hteff, hlogg, hfeh, halpha, hgrid=True, griddir='/raid/gridie/synths/')
 	fluxb = interpolateAtm(hteff, hlogg, hfeh, halpha, hgrid=True, griddir='/raid/gduggan/s/gridhbeta/synths/')
-	print(len(fluxb))
+	print('length hbeta flux',len(fluxb))
+	print('from file with', hteff,hlogg,hfeh,halpha)
 	relfluxb = scipy.ndimage.filters.gaussian_filter(1.0-fluxb,gauss_sigma)
 	
 	# Halpha
 	########
-	wvla = np.fromfile('/raid/grid7/synths/lambda.bin') #change 'synths' to 'bin' ?
+	wvla = np.fromfile('/raid/grid7/synths/lambda.bin') #change 'synths' to 'bin' ? but dont have to for running on stravinsky
 	wvla = np.around(wvla,2)
 	fluxa = interpolateAtm(hteff, hlogg, hfeh, halpha, hgrid=True, griddir='/raid/grid7/synths/')
 	relfluxa = scipy.ndimage.filters.gaussian_filter(1.0-fluxa,gauss_sigma)

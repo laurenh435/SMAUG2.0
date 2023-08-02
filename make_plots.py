@@ -111,11 +111,22 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 		try:
 			mask = np.where((obswvl > lolim) & (obswvl < uplim))
 			#print('mask', mask)
+			#print(ivar)
+			#print(type(ivar[0]))
+			# for testing
+			# plt.figure()
+			# plt.plot(obswvl[mask], synthfluxup[mask], 'k-', label='im trying')
+			# plt.plot(obswvl[mask], synthfluxdown[mask], 'r-', label='down')
+			# plt.legend(loc='best')
+			# plt.savefig(outputname+'/'+specname+'_TEST'+str(i)+'.png')
+			# plt.close()
 
 			if len(mask[0]) > 0:
 
 				if ivar is not None:
 					yerr=np.power(ivar[mask],-0.5)
+					yerr = np.float64(yerr)
+					#print(type(yerr[0]))
 				else:
 					yerr=None
 
@@ -132,6 +143,12 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 
 					# Plot synthetic spectrum
 					if (synthfluxup is not None) and (synthfluxdown is not None):
+						# print('type of x and y')
+						# print(type(obswvl[mask][0]))
+						# print(type(synthfluxup[mask][0]))
+						# print(type(synthfluxdown[mask][0]))
+						obswvl = np.float64(obswvl) #so that wvl is the same type as the synth flux
+
 						plt.fill_between(obswvl[mask], synthfluxup[mask], synthfluxdown[mask], facecolor='red', edgecolor='red', alpha=0.75, linewidth=0.5,\
 		                                   label='Synthetic', zorder=2)
 					else:
@@ -147,6 +164,7 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 
 					# Plot observed spectrum
 					#if hires == False:
+					#print('obsflux',obsflux[mask])
 					plt.errorbar(obswvl[mask], obsflux[mask], yerr=yerr, color='k', fmt='o', markersize=6, label='Observed', zorder=3)
 					#else:
 					#plt.plot(obswvl[mask], obsflux[mask], 'k-', label='Observed')

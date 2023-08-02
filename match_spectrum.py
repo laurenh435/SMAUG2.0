@@ -74,6 +74,7 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 
 	print('Opening ', filename)
 	hdu1 = fits.open(filename)
+	#print(hdu1[1].header)
 	data = hdu1[1].data
 
 	if retrievespec is not None:
