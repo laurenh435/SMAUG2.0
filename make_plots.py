@@ -18,7 +18,9 @@ import numpy as np
 import math
 
 # Code to make plots
-def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthflux_no_elem=None, synthflux_cluster=None, savechisq=None, hires=False):
+def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, \
+			   ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthfluxup02=None, synthfluxdown02=None, synthflux02_above=False, \
+				synthflux_no_elem=None, synthflux_cluster=None, additional_synth=None, add_synth_val=None, savechisq=None, hires=False):
 	"""Make plots.
 
 	Inputs:
@@ -43,6 +45,7 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 
 	Outputs:
 	"""
+	print('making plots')
 
 	# Define lines to plot
 	newlinelist = []
@@ -53,12 +56,19 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 		#newlinelist.append(linelist[j])
 	if lines == 'new':
 		linewidth = np.ones(len(newlinelist)) #sets width of green overlay
-
-		nrows = 2
-		ncols = int(len(newlinelist)/2) + 1
-		figsize = (32,15)
-		#figsize = (40,15)
-		#figsize = (20,12)
+		if element == 'Nd':
+			nrows = 4
+			ncols = int(len(newlinelist)/4)+1
+			figsize = (60,60)
+		else:
+			nrows = 2
+			ncols = int(len(newlinelist)/2) + 1
+			figsize = (32,15)
+			# USE ABOVE USUALLY
+			# nrows = 2
+			# ncols = 1
+			#figsize = (40,15)
+			# figsize = (20,15)
 
 	elif lines == 'old':
 		linelist = np.array([4739.,4783.,4823.,5394.,5432.,5516.,5537.,6013.,6021.,6384.,6491.])
@@ -110,9 +120,6 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 		# Make mask for wavelength
 		try:
 			mask = np.where((obswvl > lolim) & (obswvl < uplim))
-			#print('mask', mask)
-			#print(ivar)
-			#print(type(ivar[0]))
 			# for testing
 			# plt.figure()
 			# plt.plot(obswvl[mask], synthfluxup[mask], 'k-', label='im trying')
@@ -131,7 +138,8 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 					yerr=None
 
 				# Plot fits
-				with plt.rc_context({'axes.linewidth':4, 'axes.edgecolor':'#594F4F', 'xtick.color':'#594F4F', 'ytick.color':'#594F4F'}):
+				with plt.rc_context({'axes.linewidth':4, 'axes.edgecolor':'#594F4F', 'xtick.color':'#594F4F', 'ytick.color':'#594F4F','xtick.major.width':2,\
+						 'ytick.major.width':2,'xtick.minor.width':1,'ytick.minor.width':1,'xtick.major.size':6,'ytick.major.size':6,'xtick.direction':'in','ytick.direction':'in'}):
 					plt.figure(1)
 
 					if i==0:
@@ -141,7 +149,11 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 
 					plt.axvspan(newlinelist[i] - linewidth[i], newlinelist[i] + linewidth[i], color='green', zorder=1, alpha=0.25)
 
-					# Plot synthetic spectrum
+					# Plot synthetic spectrum with basically no [X/Fe]
+					if synthflux_no_elem is not None:
+						plt.plot(obswvl[mask], synthflux_no_elem[mask], 'b-', label='['+element+'/H] = -8.0', zorder=2)
+
+					# Plot synthetic spectrum best fit
 					if (synthfluxup is not None) and (synthfluxdown is not None):
 						# print('type of x and y')
 						# print(type(obswvl[mask][0]))
@@ -150,13 +162,21 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 						obswvl = np.float64(obswvl) #so that wvl is the same type as the synth flux
 
 						plt.fill_between(obswvl[mask], synthfluxup[mask], synthfluxdown[mask], facecolor='red', edgecolor='red', alpha=0.75, linewidth=0.5,\
-		                                   label='Synthetic', zorder=2)
+		                                   label='Synthetic', zorder=3)
 					else:
 						plt.plot(obswvl[mask], synthflux[mask], color='r', alpha=0.5, linestyle='-', linewidth=2, label='Synthetic', zorder=100)
 
-					# Plot synthetic spectrum with basically no [X/Fe]
-					if synthflux_no_elem is not None:
-						plt.plot(obswvl[mask], synthflux_no_elem[mask], 'b-', label='['+element+'/H] = -10.0', zorder=2)
+					# Plot +/-0.2 dex region
+					if (synthfluxup02 is not None) and (synthfluxdown02 is not None):
+						if synthflux02_above:
+							zorder = 100
+						else:
+							zorder = 2
+						obswvl = np.float64(obswvl)
+						plt.fill_between(obswvl[mask], synthfluxup02[mask], synthfluxdown02[mask], facecolor='pink', edgecolor='purple', alpha=0.50, linewidth=0.5,\
+		                                   label='Synthetic +/- 0.2', zorder=zorder)
+					if additional_synth is not None:
+						plt.plot(obswvl[mask], additional_synth[mask], 'g-', label='['+element+'/H] = '+str(add_synth_val), zorder=100)
 
 					# Plot synthetic spectrum with mean [X/Fe] of cluster
 					if synthflux_cluster is not None:
@@ -169,14 +189,17 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 					#else:
 					#plt.plot(obswvl[mask], obsflux[mask], 'k-', label='Observed')
 
-					#plt.xticks([linelist[i]], fontsize=18)
-					plt.yticks(fontsize=10)
+					# plt.xticks(fontsize=12)
+					# plt.yticks(fontsize=15)
+					plt.xticks(fontsize=20)
+					plt.yticks(fontsize=20)
 
 					plt.xlim((lolim, uplim))
-					plt.ylim((0.50, 1.15))
+					# plt.ylim((0.50, 1.15))
+					plt.ylim((0, 1.15))
 
 					if i==0:
-						leg = plt.legend(fancybox=True, framealpha=0.5, loc='best')
+						leg = plt.legend(fancybox=True, framealpha=0.5, fontsize=18, loc='best') 
 						for text in leg.get_texts():
 							plt.setp(text, color='#594F4F', fontsize=18)
 
@@ -212,12 +235,12 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 
 	# Legend for plot showing fits
 	fig = plt.figure(1)
-	#fig.text(0.5, 0.04, 'Wavelength (A)', fontsize=18, ha='center', va='center', color='#594F4F')
-	#fig.text(0.06, 0.5, 'Relative flux', fontsize=18, ha='center', va='center', rotation='vertical', color='#594F4F')
+	fig.text(0.5, 0.04, 'Wavelength ('+r'$\AA$'+')', fontsize=28, ha='center', va='center', color='#594F4F') #fontsize=18
+	fig.text(0.06, 0.5, 'Normalized flux', fontsize=28, ha='center', va='center', rotation='vertical', color='#594F4F') #fontsize=18
 	#plt.ylabel('Relative flux')
 	#plt.xlabel('Wavelength (A)')
 
-	plt.savefig(outputname+'/'+specname+element+'finalfits.png',bbox_inches='tight') #,transparent=True)
+	plt.savefig(outputname+'/'+specname+element+'finalfits'+str(starnum)+'.png',bbox_inches='tight') #,transparent=True)
 	plt.close(1)
 
 	if resids:
@@ -225,7 +248,7 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 		fig2.text(0.5, 0.04, 'Wavelength (A)', fontsize=18, ha='center', va='center')
 		fig2.text(0.06, 0.5, 'Residuals', fontsize=18, ha='center', va='center', rotation='vertical')
 		plt.legend(loc='best')
-		plt.savefig(outputname+'/'+specname+element+'resids.png',bbox_inches='tight')
+		plt.savefig(outputname+'/'+specname+element+'resids'+str(starnum)+'.png',bbox_inches='tight')
 		plt.close(2)
 
 	if ivar is not None:
@@ -233,7 +256,7 @@ def make_plots(lines, linelist, linegaps, specname, obswvl, obsflux, synthflux, 
 		fig3.text(0.5, 0.04, 'Wavelength (A)', fontsize=18, ha='center', va='center')
 		fig3.text(0.06, 0.5, 'Inverse variance', fontsize=18, ha='center', va='center', rotation='vertical')
 		#plt.legend(loc='best')
-		plt.savefig(outputname+'/'+specname+element+'ivar.png',bbox_inches='tight')
+		plt.savefig(outputname+'/'+specname+element+'ivar'+str(starnum)+'.png',bbox_inches='tight')
 		plt.close(3)
 
 	# Save the reduced chi-sq values!

@@ -281,12 +281,18 @@ def interpolateAtm(temp, logg, fe, alpha, carbon=None, hgrid=False, griddir='/mn
 		if gridch:
 			carbonnew = carbon*10
 			carray = 10*np.array([-2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2, 0.4,  0.6,  0.8,  1.0,  1.4, 1.8,  2.2,  2.6,  3.0,  3.5])
-			carbonUp, carbonDown, carbonError = find_nearest(carbonnew,array=carray) #Use this because array is not regular the whole way through
-			carbonUp = carbonUp/10
-			carbonDown = carbonDown/10
+			if carbon < -2.4:
+				carbonUp = carbonDown = -2.4
+			elif carbon > 3.5:
+				carbonUp = carbonDown = 3.5
+			else:
+				carbonUp, carbonDown, carbonError = find_nearest(carbonnew,array=carray) #Use this because array is not regular the whole way through
+				carbonUp = carbonUp/10
+				carbonDown = carbonDown/10
 			#print('carbon:', carbon, carbonUp, carbonDown)
-			if carbonUp > 3.5 or carbonDown < -2.4:
-				raise ValueError('[C/Fe] = '+ str(carbon) + ' is out of range!')
+			if carbonUp == 3.5 or carbonDown == -2.4:
+				print('Synth carbon may be off since measured carbon is ', carbon, 'which is out of range')
+				#raise ValueError('[C/Fe] = '+ str(carbon) + ' is out of range!')
 
 		# print('Up and Down values in interpolateAtm')
 		# print('temp:',temp, tempUp,tempDown)
@@ -371,7 +377,7 @@ def interpolateAtm(temp, logg, fe, alpha, carbon=None, hgrid=False, griddir='/mn
 	
 	if gridch:
 		if carbonUp == carbonDown:
-			carbonInterval	= np.array([carbon])
+			carbonInterval	= np.array([carbonUp])
 			carbonDelta 		= np.array([1])
 			ncarbon	 		= 1
 		else:
@@ -435,7 +441,7 @@ def interpolateAtm(temp, logg, fe, alpha, carbon=None, hgrid=False, griddir='/mn
 
 	return flux
 
-def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None, stravinsky=False):
+def writeAtm(temp, logg, fe, alpha, carbon, dir='/mnt/c/Research/SMAUG/atm/', atom_nums=None, elements=None, abunds=None, solar=None, stravinsky=False):
 	"""Create *.atm file
 
     Inputs:
@@ -445,7 +451,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
     alpha 	 -- [alpha/Fe]
 
     Keywords:
-    dir 	  -- directory to write atmospheres to [default = '/mnt/c/Research/Sr-SMAUG/atm/']
+    dir 	  -- directory to write atmospheres to [default = '/mnt/c/Research/SMAUG/atm/']
     atom_nums -- list of atomic numbers of elements to add to the list of atoms
     elements  -- list of element symbols you want added to the list of atoms e.g. 'mn', 'sr'
     abunds 	  -- list of elemental abundances corresponding to list of elements
@@ -461,12 +467,34 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 	# Check if file already exists
 	exists, readytowrite = checkFile(filestr+'.atm', overridecheck=False)
 	if exists:
+		print('atm file already exists')
 		return filestr+'.atm', shortfile+'.atm'
 
 	else:
 		# Get atmosphere data
 		#####################
 		if stravinsky:
+			# print('need to interpolate the atmosphere')
+			# # try following same method as get_synth to piece together the atmosphere file
+			# atm_ch = interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/raid/gridch/bin/',gridch=True,stravinsky=stravinsky)
+			# print('gotch')
+			# atm_blue = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/gridie/bin/', stravinsky=stravinsky)
+			# wvl_range_blue = np.arange(4100., 6300.+0.14, 0.14) #THIS WILL NEED TO CHANGE WHEN WVL RANGE EXPANDS?
+			# synthwvl_blue  = 0.5*(wvl_range_blue[1:] + wvl_range_blue[:-1])
+			# iblue = np.where(synthwvl_blue >= 4500)[0]
+			# atm_blue = atm_blue[iblue] # cut blue spectrum to not overlap with gridch synth
+			# print('cut blue spectrum')
+			# atm_grid7 = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/grid7/atmospheres/',stravinsky=stravinsky)
+			# synthwvl_red  = np.fromfile('/raid/grid7/bin/lambda.bin')
+			# synthwvl_red  = np.around(synthwvl_red,2)
+			# ired = np.where(synthwvl_red >= 6300)[0]
+			# atm_grid7 = atm_grid7[ired] # cut red spectrum to not overlap with gridie synth
+			# print('got each of the separate atmospheres')
+			# atmosphere = np.hstack((atm_ch, atm_blue, atm_grid7))
+			# print('made the model atmosphere')
+			# print('length:', len(atmosphere))
+			'''none of the above is right: the atomsphere files are different than the synths in get synth. tbh idk what the atmosphere filse even do
+			'''
 			atmosphere = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/grid7/atmospheres/',stravinsky=stravinsky)
 		else:
 			atmosphere = interpolateAtm(temp,logg,fe,alpha,stravinsky=stravinsky)
@@ -488,7 +516,15 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 		# print('TEST: ', microturbvel, test)
 		# XXX CHECK TO MAKE SURE THIS IS THE SAME AS XI COMPUTED FROM LOGG XXX
 
-		alphatxt 	= str('\n      12      ' + ('%5.2f' % float(7.60 + fe + alpha)) +
+		# alphatxt 	= str('\n      12      ' + ('%5.2f' % float(7.60 + fe + alpha)) +
+		# 			'\n      14      ' + ('%5.2f' % float(7.51 + fe + alpha)) +
+		# 			'\n      16      ' + ('%5.2f' % float(7.12 + fe + alpha)) +
+		# 			'\n      18      ' + ('%5.2f' % float(6.40 + fe + alpha)) +
+		# 			'\n      20      ' + ('%5.2f' % float(6.34 + fe + alpha)) +
+		# 			'\n      22      ' + ('%5.2f' % float(4.95 + fe + alpha)) ) #solar values plus fe and alpha for the star
+
+		alphatxt 	= str('\n      6       ' + ('%5.2f' % float(8.43 + carbon + fe)) + #not an alpha element but also add carbon abundance to the atmosphere file (this should give [C/Fe])
+					'\n      12      ' + ('%5.2f' % float(7.60 + fe + alpha)) +
 					'\n      14      ' + ('%5.2f' % float(7.51 + fe + alpha)) +
 					'\n      16      ' + ('%5.2f' % float(7.12 + fe + alpha)) +
 					'\n      18      ' + ('%5.2f' % float(6.40 + fe + alpha)) +
@@ -497,7 +533,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 
 		# If not adding any elements, use default NATOMS footer
 		if atom_nums is None:
-			natoms = 6
+			natoms = 7
 			atomstxt = str( ('%.3E' % microturbvel) +
 					'\nNATOMS    ' + str(natoms) + '   ' + ('%5.2f' % float(fe)) + alphatxt)
 
@@ -507,7 +543,7 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 			raise
 
 		else:
-			natoms = 6 + len(atom_nums)
+			natoms = 7 + len(atom_nums)
 			atomstxt = str( ('%.3E' % microturbvel) +
 					'\nNATOMS    ' + str(natoms) + '   ' + ('%5.2f' % float(fe)) + alphatxt)
 
@@ -532,8 +568,8 @@ def writeAtm(temp, logg, fe, alpha, dir='/mnt/c/Research/Sr-SMAUG/atm/', atom_nu
 		# Create final footer by adding NMOL footer to NATOMS footer
 		footertxt = str( atomstxt +
 					'\nNMOL       15' +
-					'\n   101.0   106.0   107.0   108.0   606.0   607.0   608.0   707.0' +
-					'\n   708.0   808.0 10108.0 60808.0     6.1     7.1     8.1' )
+					'\n   101.0   106.0   107.0   108.0   112.0   606.0   607.0   608.0   707.0' +
+					'\n   708.0   808.0 10108.0 60808.0     6.1     7.1     8.1   12.1' )
 
 		# Save file
 		###########

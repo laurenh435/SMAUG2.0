@@ -20,7 +20,7 @@ from astropy.io import fits
 from smooth_gauss import smooth_gauss
 import matplotlib.pyplot as plt
 
-def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, coords=False, hires=False, inputcoords=None):
+def open_obs_file(filename, grating=None, slitmask=None, retrievespec=None, specparams=False, objname=None, coords=False, hires=False, inputcoords=None):
 	"""Open .fits.gz files with observed spectra.
 
 	Inputs:
@@ -109,6 +109,62 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 			# wvl  = np.hstack((wvl_blue, wvl_red))
 			# flux = np.hstack((flux_blue, flux_red))
 			# ivar = np.hstack((ivar_blue, ivar_red))
+			# If necessary, match object name from other output file
+			if objname is not None:
+
+				# Get index of entry that matches object name of spectrum
+				namearray = data['OBJNAME']
+				index 	  = np.where(namearray==objname)
+				print('test', objname, index)
+
+				# Check that such an entry exists
+				if len(index[0]) > 0:
+					#print(index[0])
+
+					# If needed, do additional coordinate matching
+					if len(index[0]) > 1:
+						idxRA = np.argmin(np.abs(inputcoords[0] - data['RA']))
+						idxDec = np.argmin(np.abs(inputcoords[1] - data['Dec']))
+
+						if idxRA != idxDec:
+							print(idxRA, idxDec)
+							raise ValueError('Having trouble with coordinate matching!')
+						else:
+							idx = idxRA
+
+					else:
+						idx = index[0]
+
+					name = data['OBJNAME'][idx]
+					print('objname:', name)
+					wvl  = data['LAMBDA'][idx]
+					flux = data['SPEC'][idx]
+					ivar = data['IVAR'][idx]
+
+					dlam = data['DLAM'][idx]
+					# print('grating:', grating)
+					print('dlam in moogify:', dlam[0])
+					if grating == '1200B':
+						dlam = 0.7086*np.ones(len(dlam))
+						print('using dlam =', dlam[0])
+					elif grating == '900ZD':
+						dlam = 0.878*np.ones(len(dlam))
+						print('using dlam =', dlam[0])
+					else:
+						print('Grating not recognized. Using dlam from moogify.')			
+
+					# Check that measured velocity is good
+					checkvel = data['GOOD'][idx]
+					if checkvel == 0:
+						raise ValueError('Velocity is not trustworthy! Skip this star!')
+
+					# Correct for wavelength
+					zrest = data['ZREST'][idx]
+					wvl = wvl / (1. + zrest)
+					print('Redshift: ', zrest)
+
+					return name, wvl, flux, ivar, dlam, zrest
+
 
 			# Get spectrum of a single star
 			name = data['OBJNAME'][retrievespec]
@@ -116,8 +172,18 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 			wvl  = data['LAMBDA'][retrievespec]
 			flux = data['SPEC'][retrievespec]
 			ivar = data['IVAR'][retrievespec]
+
 			dlam = data['DLAM'][retrievespec]
-			dlam = 0.7086*np.ones(len(dlam))
+			# print('grating:', grating)
+			print('dlam in moogify:', dlam[0])
+			if grating == '1200B':
+				dlam = 0.7086*np.ones(len(dlam))
+				print('using dlam =', dlam[0])
+			elif grating == '900ZD':
+				dlam = 0.878*np.ones(len(dlam))
+				print('using dlam =', dlam[0])
+			else:
+				print('Grating not recognized. Using dlam from moogify.')			
 
 			# Check that measured velocity is good
 			checkvel = data['GOOD'][retrievespec]
@@ -140,7 +206,7 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 				# Get index of entry that matches object name of spectrum
 				namearray = data['OBJNAME']
 				index 	  = np.where(namearray==objname)
-				#print('test', objname, index)
+				print('test', objname, index)
 
 				# Check that such an entry exists
 				if len(index[0]) > 0:
@@ -168,12 +234,47 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 					fe_err  = data['FEHERR'][idx]
 					#zrest = data['ZREST'][index[0]]
 
+					############# for systematic error testing #################
+					temperr = int(data['TEFFERR'][idx])
+					# temp += temperr
+					loggerr = data['LOGGERR'][idx]
+					alphafeerr = data['ALPHAFEERR'][idx]
+					#############################################################
+
 					print('Parameters: ', temp, logg, fe, alpha)
 					#print('Redshift: ', zrest)
 
-				# If not, then missing best-fit parameters; just end the program
 				else:
-					raise ValueError('Spectrum not properly reduced! No best-fit parameters')
+					# Try additional coordinate matching
+					idxRA = np.argmin(np.abs(inputcoords[0] - data['RA']))
+					idxDec = np.argmin(np.abs(inputcoords[1] - data['Dec']))
+					print('trying to do coord matching',idxRA, idxDec)
+
+					if idxRA != idxDec:
+						print(idxRA, idxDec)
+						raise ValueError('Having trouble with coordinate matching! Or spectrum not properly reduced :(')
+					# elif len(idxRA)
+					else:
+						idx = idxRA
+						temp 	= int(data['TEFF'][idx])
+						logg 	= data['LOGG'][idx]
+						fe 		= data['FEH'][idx]
+						alpha 	= data['ALPHAFE'][idx]
+
+						fe_err  = data['FEHERR'][idx]
+						#zrest = data['ZREST'][index[0]]
+
+						############# for systematic error testing #################
+						temperr = int(data['TEFFERR'][idx])
+						# temp += temperr
+						loggerr = data['LOGGERR'][idx]
+						alphafeerr = data['ALPHAFEERR'][idx]
+						#############################################################
+
+						print('Parameters: ', temp, logg, fe, alpha)
+
+					# else:
+					# 	raise ValueError('Spectrum not properly reduced! No best-fit parameters')
 
 			else:
 				temp 	= int(data['TEFF'][retrievespec])
@@ -183,6 +284,13 @@ def open_obs_file(filename, retrievespec=None, specparams=False, objname=None, c
 
 				fe_err 	= data['FEHERR'][retrievespec]
 				#zrest = data['ZREST'][retrievespec]
+
+				############# for systematic error testing #################
+				temperr = int(data['TEFFERR'][retrievespec])
+				temp += temperr
+				loggerr = data['LOGGERR'][retrievespec]
+				alphafeerr = data['ALPHAFEERR'][retrievespec]
+				#############################################################
 
 				print('Parameters: ', temp, logg, fe, alpha)
 

@@ -6,6 +6,7 @@
 #######################################################################################
 
 import numpy as np
+from astropy.io import ascii
 
 class element:
     def __init__(self, Z):
@@ -14,7 +15,7 @@ class element:
         self.Ns = []
         self.Nr = []
 
-def isotope_ratio(atom_num, star_sfrac, stravinsky=False):
+def isotope_ratio(atom_num, stravinsky=False):
     '''given an element and the fraction of that element created
     by the s-process, return a list of what fraction of that element is 
     each isotope
@@ -24,6 +25,7 @@ def isotope_ratio(atom_num, star_sfrac, stravinsky=False):
     index = np.where(np.array((Z_list)) == atom_num)[0][0]
     stot = np.sum(objs[index].Ns)
     rtot = np.sum(objs[index].Nr)
+    total_sfrac = stot/(stot+rtot) #fraction of that element made from the s-process based on solar values
     #Th and U are r-process only: so they must have star_sfrac = 0
     if stot > 0:
         sfrac = objs[index].Ns/stot
@@ -37,7 +39,7 @@ def isotope_ratio(atom_num, star_sfrac, stravinsky=False):
     isotope_fracs = [] #fraction of each isotope
     moog_isotopes = [] #string of isotope identifiers for MOOG e.g. 38.1086 for 86SrII
     for i in range(len(objs[index].isotopes)):
-        val = star_sfrac*sfrac[i] + (1-star_sfrac)*rfrac[i]
+        val = total_sfrac*sfrac[i] + (1-total_sfrac)*rfrac[i]
         isotope_fracs.append(val)
         #print('isotope fraction:', objs[index].isotopes[i], val)
         moog_isotopes.append(str(atom_num)+'.1'+str(objs[index].isotopes[i]).zfill(3))
@@ -59,9 +61,9 @@ def readTable(stravinsky=False):
     ''' read in table 1 from Sneden+ 2008
     '''
     if stravinsky:
-        tablepath = '/home/lhender6/Research/Sr-SMAUG/isotope_table.txt'
+        tablepath = '/home/lhender6/Research/SMAUG/isotope_table.txt'
     else:
-        tablepath = '/mnt/c/Research/Sr-SMAUG/isotope_table.txt'
+        tablepath = '/mnt/c/Research/SMAUG/isotope_table.txt'
     tablelines = read_file(tablepath, header=True)
     element_symbols = []
     Z_list = []
@@ -112,4 +114,5 @@ def parse_line(line):
     return element, Z, A, Ns, Nr
 
 if __name__ == "__main__":
-    isotope_reciprocals = isotope_ratio(38, 0.5)
+    isotope_reciprocals, moog_isotopes = isotope_ratio(31)
+    #sfraction = readSimTable(32)

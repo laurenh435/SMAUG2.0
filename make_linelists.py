@@ -8,14 +8,14 @@
 ##############################################################################################
 
 def combine_lines(atom_nums, filestr):
-    '''combine strong lines, background lines, and hyperfine lines for a 
+    '''combine background lines and hyperfine lines for a 
     specific element into one line list
 
     atom_num -- list of atomic numbers of the elements of interest
-    filestr  -- filename will be '/mnt/c/Research/Sr-SMAUG/full_linelists/fulllines_[filestr].txt'
+    filestr  -- filename will be '/mnt/c/Research/SMAUG/full_linelists/fulllines_[filestr].txt'
     '''
     #open the line lists
-    filepath = '/mnt/c/Research/Sr-SMAUG/full_linelists/'
+    filepath = '/mnt/c/Research/SMAUG/full_linelists/'
 #     strongfile = filepath+'bluestrong.txt'
 #     stronglines = read_file(strongfile, header=False)
     valdnist_file = filepath+'valdnist4163.txt'
@@ -73,30 +73,61 @@ def split_list(full_list, atom_num, element, stravinsky=False):
     elementlines -- lines from element of interest from 'Ji20_linelist.moog'
     '''
     if stravinsky:
-        filepath = '/home/lhender6/Research/Sr-SMAUG/full_linelists/'
+        filepath = '/home/lhender6/Research/SMAUG/full_linelists/'
     else:
-        filepath = '/mnt/c/Research/Sr-SMAUG/full_linelists/'
+        filepath = '/mnt/c/Research/SMAUG/full_linelists/'
     full_lines = read_file(full_list)
     ref_lines = read_file(filepath+'Ji20_linelist.moog', header=True)
     #get reference lines only for element of interest
     keep_lines = [rows for rows in ref_lines if int(float(rows[15:20].strip()))==atom_num]
+    if atom_num == 12: #need to add third Mg triplet line
+        keep_lines.append('5167.3216     12.0     2.709    -0.870')
+    
+    if atom_num == 39: #add redder Y line
+    #     keep_lines.append('5123.210      39.1     0.992     -0.83') #DECIDED TO NOT USE THESE - THEY DON'T CONTRIBUTE ANYTHING
+    #     keep_lines.append('5509.896      39.1     0.992     -1.01') #DECIDED TO NOT USE THESE - THEY DON'T CONTRIBUTE ANYTHING
+        keep_lines.append('7881.881      39.1     1.840     -0.57')
+
     #print('number of element lines:', len(keep_lines))
+    if atom_num == 40: #add zirconium lines not in Ji linelist
+        keep_lines.append('4496.962      40.1     0.713     -0.89')
+        keep_lines.append('4379.742      40.1     1.532    -0.356')
+        keep_lines.append('4359.720      40.1     1.236    -0.510')
+        keep_lines.append('4179.807      40.1     1.665    -0.680')
+        keep_lines.append('4161.200      40.1     0.713    -0.590')
+        keep_lines.append('4231.629      40.1     1.756    -0.790')
+        keep_lines.append('4370.947      40.1     1.208    -0.770')
+        keep_lines.append('4442.992      40.1     1.486    -0.420')
+        keep_lines.append('4710.081      40.0     0.686     0.370')
+        keep_lines.append('4739.480      40.0     0.650     0.230')
+        keep_lines.append('4772.323      40.0     0.622     0.040')
+        keep_lines.append('4815.621      40.0     0.603    -0.030')
+        keep_lines.append('5112.270      40.1     1.665    -0.850')
 
     #split full line list into +/-10A gaps to run with MOOG
     linelists = list() #line list names to give to MOOG
-    gaps = []
-    elementlines = []
+    gaps_all = []
+    elementlines_all = []
     for i in keep_lines:
-        elementlines.append(float(i[0:10].strip()))
+        elementlines_all.append(float(i[0:10].strip()))
         gap = [float(i[0:10].strip())-10, float(i[0:10].strip())+10]
-        gaps.append(gap)
+        gaps_all.append(gap)
 
     #put lines and gaps in order
-    elementlines.sort()
+    elementlines_all.sort()
     def sortfirst(val):
         return val[0]
-    gaps.sort(key=sortfirst)
+    gaps_all.sort(key=sortfirst)
     #print('oldgaps:',gaps)
+
+    #get rid of lines (and gaps) bluer than 4200 A. 
+    #right now the synths don't go below 4100, and the Nd lines between 4100 and 4200 aren't good beacuse spectrum is so noisy there
+    elementlines = []
+    gaps = []
+    for i in range(len(elementlines_all)):
+        if elementlines_all[i] > 4200.:
+            elementlines.append(elementlines_all[i])
+            gaps.append(gaps_all[i])
 
     #combine gaps that are overlapping
     newgaps = []
@@ -146,16 +177,26 @@ def split_list(full_list, atom_num, element, stravinsky=False):
             break
     
     #write line list files
+    #print(newgaps)
+    #print(gapkey) #THESE ARE WRONG
     for k in range(len(newgaps)):
         gap_lines = [lines for lines in full_lines if float(lines[0:10].strip())>newgaps[k][0] and float(lines[0:10].strip())<newgaps[k][1]]
-        newfile = filepath+element+gapkey[k]+'.txt'
-        name = 'full_linelists/'+element+gapkey[k]+'.txt' #file path to write into parameter file for MOOG
+        # newfile = filepath+element+gapkey[k]+'.txt'
+        linestring=''
+        for line in elementlines:
+            if int(line) > newgaps[k][0] and int(line) < newgaps[k][1]:
+                linestring = linestring+str(int(line))
+            
+        #name = 'full_linelists/'+element+gapkey[k]+'.txt' #file path to write into parameter file for MOOG
+        newfile = filepath+element+linestring+'.txt'
+        name = 'full_linelists/'+element+linestring+'.txt'
         linelists.append(name)
         ofile=open(newfile, 'w')
         ofile.write(element+' '+gapkey[k]+' +/-10 A'+'\n') #MOOG wants first line to be a header of some sort
         for j in gap_lines:
             ofile.write(j)
         ofile.close()
+    #print(linelists)
 
     return linelists, newgaps, elementlines
 
@@ -176,8 +217,22 @@ def read_file(filepath, header=False):
     ifile.close()
     return lines
 
+def read_linemake(file, atom):
+    '''
+    Prints all the lines in the linemake file of that element (atom=atomic number).
+    Just used to make the list easier to digest.
+    '''
+    lines = read_file(file)
+    newlinemakelines = [rows for rows in lines if int(float(rows[10:20].strip()))==atom]
+    print(newlinemakelines)
+
 if __name__ == "__main__":
     #Sr:38, Mn:25
-    combine_lines([38,39,40,56,57,58,60,63], 'sprocess')
-    #split_list('/mnt/c/Research/Sr-SMAUG/full_linelists/full_lines_mn.txt', 25, 'Mn')
+    #combine_lines([38,39,40,56,57,58,60,63], 'sprocess')
+    # linelists, linegaps, elementlines = split_list('/mnt/c/Research/SMAUG/full_linelists/full_linemake_nostrong.txt', 12, 'Mg')
+    # print(linegaps)
+    # print(elementlines)
+    filepath = '/mnt/c/Research/SMAUG/full_linelists/'
+    linemake_file = filepath+'full_linemake.txt'
+    read_linemake(linemake_file, 63)
 

@@ -30,7 +30,7 @@ from match_spectrum import open_obs_file, smooth_gauss_wrapper
 from scipy.interpolate import splrep, splev
 from make_plots import make_plots
 
-def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=None, alpha=None, carbon=None, stravinsky=False):
+def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=None, alpha=None, carbon=None, stravinsky=False, smoothed=True):
 	"""Get synthetic spectrum and smooth it to match observed spectrum.
 
     Inputs:
@@ -66,6 +66,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 			synthflux_ch = 1. - interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/raid/gridch/bin/',gridch=True,stravinsky=stravinsky)
 			#print('ch flux!', synthflux_ch[0:5])
 			synthwvl_ch = np.fromfile('/raid/gridch/bin/lambda.bin')
+			#print('getting synth with carbon=',carbon)
 		else:
 			synthflux_ch = 1. - interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/mnt/c/SpectraGrids/gridch/bin/',gridch=True,stravinsky=stravinsky) #this won't work because I don't have this grid on my computer
 		synthwvl_ch  = np.around(synthwvl_ch,2)
@@ -80,7 +81,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 		iblue = np.where(synthwvl_blue >= 4500)[0]
 		synthflux_blue = synthflux_blue[iblue] # cut blue spectrum to not overlap with gridch synth
 		synthwvl_blue = synthwvl_blue[iblue]
-		print('bluest gridie after cut:',synthwvl_blue[0])
+		#print('bluest gridie after cut:',synthwvl_blue[0])
 
 		# Also get synthetic spectrum for redder part from Evan's grid
 		if stravinsky:
@@ -90,12 +91,15 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 			synthflux_red = 1. - interpolateAtm(temp,logg,fe,alpha,griddir='/mnt/c/SpectraGrids/grid7/bin/', stravinsky=stravinsky)
 			synthwvl_red  = np.fromfile('/mnt/c/SpectraGrids/grid7/bin/lambda.bin')
 		synthwvl_red  = np.around(synthwvl_red,2)
-		print('grid7 wvl range (red):',synthwvl_red[0],synthwvl_red[-1])
+		ired = np.where(synthwvl_red >= 6300)[0]
+		synthflux_red = synthflux_red[ired] # cut red spectrum to not overlap with gridie synth
+		synthwvl_red = synthwvl_red[ired]
+		# print('grid7 wvl range (red):',synthwvl_red[0],synthwvl_red[-1])
 
 		# Splice blue + red parts together
 		synthflux = np.hstack((synthflux_ch, synthflux_blue, synthflux_red))
 		synthwvl  = np.hstack((synthwvl_ch, synthwvl_blue, synthwvl_red))
-		#print(' synthwvl range without mask:',synthwvl[0],synthwvl[-1])
+		# print(' synthwvl range without mask:',synthwvl[0],synthwvl[-1])
 		#print('TEST:',synthwvl[0],obswvl[0])
 
 	# Else, use input synthetic spectrum
@@ -107,26 +111,28 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 	mask = np.where((synthwvl > obswvl[0]) & (synthwvl < obswvl[-1]))
 	synthwvl = synthwvl[mask]
 	synthflux = synthflux[mask]
-	#print(' synthwvl range WITH mask:',synthwvl[0],synthwvl[-1])
+	# print(' synthwvl range WITH mask:',synthwvl[0],synthwvl[-1])
 
 	# Interpolate and smooth the synthetic spectrum onto the observed wavelength array
-	synthfluxnew = smooth_gauss_wrapper(synthwvl, synthflux, obswvl, dlam)
+	if smoothed:
+		synthfluxnew = smooth_gauss_wrapper(synthwvl, synthflux, obswvl, dlam)
+		return synthfluxnew
+	else:
+		return synthflux
 
-	# For testing purposes
-	'''
-	plt.figure()
-	plt.plot(synthwvl, synthflux, 'k-', label='Synthetic')
-	plt.plot(obswvl, synthfluxnew, 'r-', label='Synthetic (smoothed)')
-	#plt.xlim(5000, 5250)
-	#plt.ylim(0.9,1.0)
-	plt.legend(loc='best')
-	plt.savefig('synth_cont.png')
-	#plt.show()
-	'''
+	# # For testing purposes
+	# '''
+	# plt.figure()
+	# plt.plot(synthwvl, synthflux, 'k-', label='Synthetic')
+	# plt.plot(obswvl, synthfluxnew, 'r-', label='Synthetic (smoothed)')
+	# #plt.xlim(5000, 5250)
+	# #plt.ylim(0.9,1.0)
+	# plt.legend(loc='best')
+	# plt.savefig('synth_cont.png')
+	# #plt.show()
+	# '''
 
-	return synthfluxnew
-
-def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, logg=None, fe=None, alpha=None, dlam=None, carbon=None, lines='new', hires=False, stravinsky=False):
+def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, logg=None, fe=None, alpha=None, dlam=None, carbon=None, lines='new', hires=False, stravinsky=False, spec1200G=False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out desired element lines for continuum division.
 	Split spectra into red and blue parts.
@@ -158,11 +164,12 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
     mask 	      -- mask to avoid bad shit (chip gaps, bad pixels, Na D lines)
     """
 
-	#print('masking obs for division')
+	# print('masking obs for division')
 
 	# Get smoothed synthetic spectrum and (NOT continuum-normalized) observed spectrum
 	synthflux = get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=temp, logg=logg, fe=fe, alpha=alpha, carbon=carbon, stravinsky=stravinsky)
-	#print('got synth')
+	print('got synth')
+	# print(len(synthflux))
 
 	# Make a mask
 	mask = np.zeros(len(synthflux), dtype=bool)
@@ -172,9 +179,12 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 	mask[-5:] = True
 
 	# Mask out more of ends of spectra
-	#mask[np.where(obswvl < 4650)] = True 
-	mask[np.where(obswvl < 4100)] = True #synthetic grids cut off at 4100 for now
-	mask[np.where(obswvl > 6550)] = True
+	if spec1200G:
+		mask[np.where(obswvl < 6400)] = True
+		mask[np.where(obswvl > 9000)] = True
+	else: 
+		mask[np.where(obswvl < 4100)] = True #synthetic grids cut off at 4100 for now
+		mask[np.where(obswvl > 6800)] = True #was 6550
 
 	# Mask out Halpha, Hbeta, Hgamma
 	mask[np.where((obswvl > 4340 - 5) & (obswvl < 4340 + 5))] = True #Hgamma
@@ -202,10 +212,10 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 
 	# Mask out any bad pixels
 	mask[np.where(synthflux <= 0.)] = True
-	#print('Where synthflux < 0: ', obswvl[np.where(synthflux <=0.)])
+	# print('Where synthflux < 0: ', obswvl[np.where(synthflux <=0.)])
 
 	mask[np.where(ivar <= 0.)] = True
-	#print('Where ivar < 0: ', obswvl[np.where(ivar <=0.)])
+	# print('Where ivar < 0: ', obswvl[np.where(ivar <=0.)])
 
 	# Mask out pixels around Na D doublet (5890, 5896 A)
 	mask[np.where((obswvl > 5884.) & (obswvl < 5904.))] = True
@@ -238,7 +248,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 	obsfluxmask   	= ma.masked_array(obsflux, mask)
 	obswvlmask	  	= ma.masked_array(obswvl, mask)
 	ivarmask	  	= ma.masked_array(ivar, mask)
-	#print('test:', obsfluxmask[chipgap-30:chipgap+30])
+	# print('test:', obsfluxmask[chipgap-30:chipgap+30])
 
 	# Split spectra into blue (index 0) and red (index 1) parts
 	if hires==False:
@@ -247,7 +257,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 		obswvlmask 		= [obswvlmask[:chipgap], obswvlmask[chipgap:]]
 		ivarmask 		= [ivarmask[:chipgap], ivarmask[chipgap:]]
 		mask 			= [mask[:chipgap], mask[chipgap:]]
-	#print('finished masking obs for division')
+	# print('finished masking obs for division')
 
 	return synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, chipgap
 
@@ -279,6 +289,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
     obsflux_norm_final -- continuum-normalized observed flux (blue and red parts spliced together)
     ivar_norm_final    -- continuum-normalized inverse variance (blue and red parts spliced together)
     """
+	print('normalization started')
 
 	# Prep outputs of continuum division
 	obswvl 		 = []
@@ -307,6 +318,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 
 		# Convert inverse variance to inverse standard deviation
 		newivarmask = ma.masked_array(np.sqrt(ivarmask[ipart].data), mask[ipart])
+		# print('masked inverse standard deviation')
 
 		# Divide obs/synth
 		quotient.append(obsfluxmask[ipart]/synthfluxmask[ipart])
@@ -387,14 +399,17 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 		if breakpoints_old[-1]==obswvlmask[ipart].compressed()[-1]: #so that each knot, t, has data points in between IS THIS OK TO DO?
 			breakpoints_old.pop(-1)
 			print('had to get rid of last knot')
-		# def is_sorted(array):
-		# 	for i in range(len(array)-1):
-		# 		if array[i+1] < array[i]:
-		# 			return False
-		# 	return True
+		def is_sorted(array):
+			for i in range(len(array)-1):
+				if array[i+1] < array[i]:
+					return False
+			return True
 		# print('is x sorted?',is_sorted(obswvlmask[ipart].compressed())) # x must be sorted for interpolation to work
+		# print(obswvlmask[ipart].compressed())
+		# print(len(obswvlmask[ipart].compressed()), len(quotient[ipart].compressed()))
 		splinerep_old 	= splrep(obswvlmask[ipart].compressed(), quotient[ipart].compressed(), w=newivarmask.compressed(), t=breakpoints_old)
 		continuum_old	= splev(obswvlmask[ipart].compressed(), splinerep_old)
+		# print('did interpolation')
 
 		# Iterate the fit, sigma-clipping until it converges or max number of iterations is reached
 		if sigmaclip:
@@ -413,9 +428,19 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 				clipmask[np.where((resid < -5*sigma) | (resid > 5*sigma))] = False
 
 				# Recalculate the fit after sigma-clipping
+				# print('is x sorted?',is_sorted((obswvlmask[ipart].compressed())[clipmask]))
 				breakpoints_new = calc_breakpoints_pixels((obswvlmask[ipart].compressed())[clipmask], 300.)
+				# print('calculated break points')
+				# print((obswvlmask[ipart].compressed())[clipmask], (quotient[ipart].compressed())[clipmask], (newivarmask.compressed())[clipmask])
+				# print(len((obswvlmask[ipart].compressed())[clipmask]),len((quotient[ipart].compressed())[clipmask]),len((newivarmask.compressed())[clipmask]))
+				# print(type((obswvlmask[ipart].compressed())[clipmask][0]), type(breakpoints_new[0]))
+				# print((obswvlmask[ipart].compressed())[clipmask][0],(obswvlmask[ipart].compressed())[clipmask][-1])
+				# print(breakpoints_new)
+				if np.abs((obswvlmask[ipart].compressed())[clipmask][-1] - breakpoints_new[-1]) < 0.0001:
+					breakpoints_new[-1] = breakpoints_new[-1]-0.0001
 				splinerep_new 	= splrep((obswvlmask[ipart].compressed())[clipmask], (quotient[ipart].compressed())[clipmask], w=(newivarmask.compressed())[clipmask], t=breakpoints_new)
 				continuum_new 	= splev(obswvlmask[ipart].compressed(), splinerep_new)
+				# print('did these other interpolations too')
 
 				# For testing purposes
 				'''
@@ -435,7 +460,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 
 				plt.subplot(212)
 				plt.plot(obswvlmask[ipart].compressed(), resid)
-				plt.savefig('/mnt/c/Research/Spectra/Sr-SMAUGoutput/normalizetest.png')
+				plt.savefig('/mnt/c/Research/Spectra/SMAUGoutput/normalizetest.png')
 				'''
 
 				# Check for convergence (if all points have been clipped)
@@ -466,8 +491,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 		ivar_norm.append(ivarmask[ipart].data * np.power(continuum_final, 2.))
 
 		# Plots for testing
-		 
-		# this part also adds to the final fit plots from make_plot
+		''' 
 		plt.figure()
 		plt.subplot(211)
 		plt.plot(obswvlmask[ipart].data, obsfluxmask[ipart].data, 'r-', label='Masked')
@@ -498,7 +522,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 		axs[1].set_xlim((obswvlmask[ipart].compressed()[0],obswvlmask[ipart].compressed()[0]+500))
 		fig.savefig(outputname+'/'+specname+'_continuum'+str(ipart)+'.png')
 		plt.close()
-		
+		'''
 
 	# Now splice blue and red parts together
 	obswvl_final	 	= np.hstack((obswvl[:]))
@@ -519,9 +543,9 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 
 	return obsflux_norm_final, ivar_norm_final
 
-def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, linegaps, lines = 'new', hires = False):
+def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, element, linegaps, lines = 'new', hires = False):
 	"""Make a mask for synthetic and observed spectra.
-	Mask out bad stuff + EVERYTHING BUT Mn lines (for actual abundance measurements)
+	Mask out bad stuff + EVERYTHING BUT desired element lines (for actual abundance measurements)
 
     Inputs:
     Observed spectrum --
@@ -546,10 +570,6 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lineg
     dlammask	  -- (masked!) FWHM array
     skip 		  -- list of lines to NOT skip
     """
-    
-	# Read in file of target lines
-	#fitslines = fits.open('/mnt/c/Research/Sr-SMAUG/'+element+'linelists/'+element+'lines.fits')
-	#elemlines = fitslines[1].data
 
 	# Make a mask
 	mask = np.zeros(len(obswvl), dtype=bool)
@@ -581,16 +601,15 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lineg
 	if lines == 'old':
 		lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
 	elif lines == 'new':
-
-		# lineslist = list()
-		# for i in range(len(elemlines[element+'lines'])):
-		# 	gap = [elemlines[element+'lines'][i]-10., elemlines[element+'lines'][i]+10.]
-		# 	lineslist.append(gap)
 		lines = np.array(linegaps)
 
 	for i in range(len(masklist)):
 		for line in range(len(lines)):
 			masklist[i].append( arraylist[i][np.where(((obswvl > lines[line][0]) & (obswvl < lines[line][1]) & (~mask)))] )
+		# 	print('linegap:', lines[line])
+		# 	print(masklist[i][-1])
+		# if lines[-1] == lines[-2]: #we have the reddest line for Ba or Eu in both blue and 1200G spectra -- need to split those up
+
 
 	skip = np.arange(len(lines))
 	for line in range(len(lines)):
@@ -610,13 +629,24 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, element, lineg
 		# Skip lines that are at edges of spectrum where things go crazy
 		#print('length of observed spectrum', len(obsflux_norm))
 		#print(np.where(obsflux_norm[0:2000] <= 0))
-		blue_cutoff = obswvl[np.where(obsflux_norm[0:2000] <= 0)][-1]
-		red_cutoff = obswvl[-3000:][np.where(obsflux_norm[-3000:] <= 0)][0]
-		#print('cutoffs', blue_cutoff, red_cutoff)
-		if lines[line][0] > blue_cutoff and lines[line][1] < red_cutoff:
-			continue
-		else:
-			skip = np.delete(skip, np.where(skip==line))			
+		if len(np.where(obsflux_norm[0:2000] <= 0)) != 0:
+			blue_cutoff = obswvl[np.where(obsflux_norm[0:2000] <= 0)][-1]
+			#print(blue_cutoff)
+			if lines[line][0] > blue_cutoff:
+				continue
+			else: 
+				skip = np.delete(skip, np.where(skip==line))
+		if len(np.where(obsflux_norm[-3000:] <= 0)) != 0:
+			red_cutoff = obswvl[-3000:][np.where(obsflux_norm[-3000:] <= 0)][0]
+			#print(red_cutoff)
+			if lines[line][1] < red_cutoff:
+				continue
+			else:
+				skip = np.delete(skip, np.where(skip==line))
+		# if lines[line][0] > blue_cutoff and lines[line][1] < red_cutoff:
+		# 	continue
+		# else:
+		# 	skip = np.delete(skip, np.where(skip==line))			
 					
 
 		# 	badspots_red = np.where(self.obsflux_norm[-2000:-1] < 0)
