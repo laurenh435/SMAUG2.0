@@ -449,6 +449,7 @@ def writeAtm(temp, logg, fe, alpha, carbon, dir='/mnt/c/Research/SMAUG/atm/', at
     logg 	 -- surface gravity
     fe 		 -- [Fe/H]
     alpha 	 -- [alpha/Fe]
+	carbon   -- [C/Fe]
 
     Keywords:
     dir 	  -- directory to write atmospheres to [default = '/mnt/c/Research/SMAUG/atm/']
@@ -456,6 +457,7 @@ def writeAtm(temp, logg, fe, alpha, carbon, dir='/mnt/c/Research/SMAUG/atm/', at
     elements  -- list of element symbols you want added to the list of atoms e.g. 'mn', 'sr'
     abunds 	  -- list of elemental abundances corresponding to list of elements
     solar 	  -- solar abundances corresponding to list of elements
+	stravinsky -- whether running on stravinsky for file names
     """
 
 	# Atmosphere to write
@@ -474,27 +476,6 @@ def writeAtm(temp, logg, fe, alpha, carbon, dir='/mnt/c/Research/SMAUG/atm/', at
 		# Get atmosphere data
 		#####################
 		if stravinsky:
-			# print('need to interpolate the atmosphere')
-			# # try following same method as get_synth to piece together the atmosphere file
-			# atm_ch = interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/raid/gridch/bin/',gridch=True,stravinsky=stravinsky)
-			# print('gotch')
-			# atm_blue = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/gridie/bin/', stravinsky=stravinsky)
-			# wvl_range_blue = np.arange(4100., 6300.+0.14, 0.14) #THIS WILL NEED TO CHANGE WHEN WVL RANGE EXPANDS?
-			# synthwvl_blue  = 0.5*(wvl_range_blue[1:] + wvl_range_blue[:-1])
-			# iblue = np.where(synthwvl_blue >= 4500)[0]
-			# atm_blue = atm_blue[iblue] # cut blue spectrum to not overlap with gridch synth
-			# print('cut blue spectrum')
-			# atm_grid7 = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/grid7/atmospheres/',stravinsky=stravinsky)
-			# synthwvl_red  = np.fromfile('/raid/grid7/bin/lambda.bin')
-			# synthwvl_red  = np.around(synthwvl_red,2)
-			# ired = np.where(synthwvl_red >= 6300)[0]
-			# atm_grid7 = atm_grid7[ired] # cut red spectrum to not overlap with gridie synth
-			# print('got each of the separate atmospheres')
-			# atmosphere = np.hstack((atm_ch, atm_blue, atm_grid7))
-			# print('made the model atmosphere')
-			# print('length:', len(atmosphere))
-			'''none of the above is right: the atomsphere files are different than the synths in get synth. tbh idk what the atmosphere filse even do
-			'''
 			atmosphere = interpolateAtm(temp,logg,fe,alpha,griddir='/raid/grid7/atmospheres/',stravinsky=stravinsky)
 		else:
 			atmosphere = interpolateAtm(temp,logg,fe,alpha,stravinsky=stravinsky)
@@ -515,13 +496,6 @@ def writeAtm(temp, logg, fe, alpha, carbon, dir='/mnt/c/Research/SMAUG/atm/', at
 			microturbvel = (2.13 - 0.23*logg[0]) * 1e5
 		# print('TEST: ', microturbvel, test)
 		# XXX CHECK TO MAKE SURE THIS IS THE SAME AS XI COMPUTED FROM LOGG XXX
-
-		# alphatxt 	= str('\n      12      ' + ('%5.2f' % float(7.60 + fe + alpha)) +
-		# 			'\n      14      ' + ('%5.2f' % float(7.51 + fe + alpha)) +
-		# 			'\n      16      ' + ('%5.2f' % float(7.12 + fe + alpha)) +
-		# 			'\n      18      ' + ('%5.2f' % float(6.40 + fe + alpha)) +
-		# 			'\n      20      ' + ('%5.2f' % float(6.34 + fe + alpha)) +
-		# 			'\n      22      ' + ('%5.2f' % float(4.95 + fe + alpha)) ) #solar values plus fe and alpha for the star
 
 		alphatxt 	= str('\n      6       ' + ('%5.2f' % float(8.43 + carbon + fe)) + #not an alpha element but also add carbon abundance to the atmosphere file (this should give [C/Fe])
 					'\n      12      ' + ('%5.2f' % float(7.60 + fe + alpha)) +

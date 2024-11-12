@@ -1,3 +1,9 @@
+# fitlength.py
+# just gets length of fits file for SMAUGsplit.sh and SMAUGsplitGC.sh
+# because I don't want to figre out how to do that in shell script
+# written by LEH
+####################################################################
+
 from astropy.io import fits
 import sys
 

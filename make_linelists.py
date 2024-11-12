@@ -8,7 +8,8 @@
 ##############################################################################################
 
 def combine_lines(atom_nums, filestr):
-    '''combine background lines and hyperfine lines for a 
+    '''
+    combine background lines and hyperfine lines for a 
     specific element into one line list
 
     atom_num -- list of atomic numbers of the elements of interest
@@ -59,7 +60,8 @@ def combine_lines(atom_nums, filestr):
     return
 
 def split_list(full_list, atom_num, element, stravinsky=False):
-    '''splits full line list as created in combine_lines into +/- 10 A
+    '''
+    splits full line list as created in combine_lines into +/- 10 A
     bands around the element's lines in the reference line list
 
     inputs:
@@ -129,7 +131,7 @@ def split_list(full_list, atom_num, element, stravinsky=False):
             elementlines.append(elementlines_all[i])
             gaps.append(gaps_all[i])
 
-    #combine gaps that are overlapping
+    #combine gaps that are overlapping: lots of logic
     newgaps = []
     oldnumber = len(gaps)
     gapkey = []
@@ -176,9 +178,7 @@ def split_list(full_list, atom_num, element, stravinsky=False):
             gapkey.append(newkey)
             break
     
-    #write line list files
-    #print(newgaps)
-    #print(gapkey) #THESE ARE WRONG
+    # write line list files
     for k in range(len(newgaps)):
         gap_lines = [lines for lines in full_lines if float(lines[0:10].strip())>newgaps[k][0] and float(lines[0:10].strip())<newgaps[k][1]]
         # newfile = filepath+element+gapkey[k]+'.txt'

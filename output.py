@@ -5,9 +5,10 @@
 #
 # Attempting to edit this to run for just one star on my computer -LEH 3/31/23
 # New copy of this to make general for any element -LEH 5/31/2023
+# Can run SMAUG abundance measurement for any element (with lines in the wavelength range).
 ###################################################################
 
-#Backend for python3 on mahler
+#Backend for python3
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -30,16 +31,16 @@ import chi_sq
 from make_plots import make_plots
 
 def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, grating, atom_num, startstar=0, endstar=None, csvend=None, \
-			  globular=False, lines='new', plots=False, wvlcorr=True, stravinsky=True, membercheck=None, memberlist=None, velmemberlist=None, \
-				chisq_weight=True, dlamfit=True, file1200G=None):
+			  masterlinelist = 'full_linemake_nostrong.txt', globular=False, plots=False, wvlcorr=True, stravinsky=True, membercheck=None, \
+				memberlist=None, velmemberlist=None, chisq_weight=True, dlamfit=False, file1200G=None):
 	""" Measure abundances from a FITS file.
 
 	Inputs:
 	filename 		-- file with observed spectra
 	paramfilename 	-- file with parameters of observed spectra
-	galaxyname		-- galaxy name, options: 'scl'
-	slitmaskname 	-- slitmask name, options: 'scl1'
-	element         -- element you want the abundances of e.g. 'Sr', 'Mn'
+	galaxyname		-- galaxy name, e.g. 'scl'
+	slitmaskname 	-- slitmask name, e.g. 'bscl1'
+	element         -- element you want the abundances of, e.g. 'Sr', 'Mn'
 	grating         -- what grating was used for the slitmask (this defines what dlam should be)
 	atom_num        -- atomic number of the element you want the abundance of
 
@@ -49,20 +50,22 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 	endstar         -- if None (default), run all stars; else, end at endstar
 	csvend          -- if None (default), output csv has standard name; else it has csvend appended to
 	                    the name (for example, numbering them for parallel runs)
+	masterlinelist  -- full line list file
 	globular 		-- if 'False' (default), put into output path of galaxy;
 						else, put into globular cluster path
-	lines 			-- if 'new' (default), use new revised linelist;
-						else, use original linelist from Judy's code
 	plots 			-- if 'False' (default), don't plot final fits/resids while doing the fits;
 						else, plot them
-	wvlcorr 		-- if 'True' (default), do linear wavelength corrections following G. Duggan's code for 900ZD data;
-						else (for 1200B data), don't do corrections
-	membercheck 	-- do membership check for this object
-	memberlist		-- member list (from Evan's Li-rich giants paper)
-	velmemberlist 	-- member list (from radial velocity check)
-
+	wvlcorr 		-- if 'True' (default), do linear wavelength corrections
+	stravinsky      -- if 'True' (default), use filepaths appropriate for Stravinsky
+	membercheck 	-- do membership check for this object (have not used or changed this feature -LEH)
+	memberlist		-- member list (if using membercheck, from Evan's Li-rich giants paper)
+	velmemberlist 	-- member list (if using membercheck, from radial velocity check)
+	chisq_weight    -- if 'True' (default), calculate chisq for each line region and cut lines if necessary
+	dlamfit         -- if 'True', fit dlambda before fitting element abundance
+	file1200G       -- 1200G spectrum to include if wavelength range should be extended
 	"""
 
+	# Set file paths
 	if csvend is None:
 		# Output filename
 		if globular: # must be run on Stravinsky
@@ -109,39 +112,11 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 
 	# Make line lists for the element of interest
 	if stravinsky:
-		#linelists, linegaps, elementlines = split_list('/home/lhender6/Research/SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
-		linelists, linegaps, elementlines = split_list('/home/lhender6/Research/SMAUG/full_linelists/full_linemake_nostrong.txt', atom_num, element, stravinsky=stravinsky)
+		linelists, linegaps, elementlines = split_list('/home/lhender6/Research/SMAUG/full_linelists/'+masterlinelist, atom_num, element, stravinsky=stravinsky)
 	else:
-		linelists, linegaps, elementlines = split_list('/mnt/c/Research/SMAUG/full_linelists/full_lines_sprocess.txt', atom_num, element, stravinsky=stravinsky)
+		linelists, linegaps, elementlines = split_list('/mnt/c/Research/SMAUG/full_linelists/'+masterlinelist, atom_num, element, stravinsky=stravinsky)
 
-	# To test what I get with just the Sr II line
-	# linelists = ['full_linelists/Sr4215.txt']
-	# linegaps = [[4205.524, 4225.524]]
-	# elementlines = [4215.524]
-
-	# To test Y without last two lines
-	# linelists =  ['full_linelists/Y4398.txt', 'full_linelists/Y4854.txt', 'full_linelists/Y48834900.txt', 'full_linelists/Y5087.txt']
-	# linegaps =  [[4388.01, 4408.01], [4844.867, 4864.867], [4873.68, 4910.11], [5077.42, 5097.42]]
-	# elementlines = [4398.01, 4854.867, 4883.68, 4900.11, 5087.42]
-
-	# To test with edited Mg line lists	
- 	# linegaps = [[4561.096, 4581.096], [4692.991, 4712.991], [5157.3216, 5193.604], [5518.405, 5538.405], [5701.088, 5721.088]]
-	# elementlines = [4571.096, 4702.991, 5167.3216, 5172.684, 5183.604, 5528.405, 5711.088]
-	# linelists = ['full_linelists/Mg4571_edit.txt', 'full_linelists/Mg4702_edit.txt','full_linelists/Mg516751725183.txt', 'full_linelists/Mg5528_edit.txt','full_linelists/Mg5711_edit.txt']
-	# linegaps = [[5162.684, 5182.684], [5518.405, 5538.405], [5701.088, 5721.088]]
-	# elementlines = [5172.684, 5528.405, 5711.088]
-	# linelists = ['full_linelists/Mg5172.txt', 'full_linelists/Mg5528.txt','full_linelists/Mg5711.txt']
-
-	# To test Eu with just 6645 line
-	# linegaps = [[6635.104, 6655.104]]
-	# elementlines = [6645.104]
-	# linelists = ['full_linelists/Eu6645.txt']
-
-	# To test Ba with just 4554 line
-	# linegaps = [[4544.034,4564.034]]
-	# elementlines = [4554.034]
-	# linelists = ['full_linelists/Ba4554.txt']
-
+	# Set up output CSV
 	with open(outputname, 'w+') as f:
 		column_names = 'Name\tstarnum\tRA\tDec\tTemp\tlog(g)\t[Fe/H]\terror([Fe/H])\t[alpha/Fe]\t[C/Fe]\t['+element+'/H]\terror(['+element+'/H])\tchisq(reduced)\tdlam'
 		for i in range(len(linegaps)):
@@ -152,7 +127,6 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 			column_names = column_names+'\tused'+str(int(linegaps[k][0]))+str(int(linegaps[k][1]))
 		column_names = column_names+'\n'
 		f.write(column_names)
-		# f.write('Name\tRA\tDec\tTemp\tlog(g)\t[Fe/H]\terror([Fe/H])\t[alpha/Fe]\t[C/Fe]\t['+element+'/H]\terror(['+element+'/H])\tchisq(reduced)\tdlam\n')
 
 	print('element lines:', elementlines)
 	print('line gaps:',linegaps)
@@ -161,7 +135,7 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 	# Run chi-sq fitting for all stars in file
 	if endstar is None:
 		endstar=Nstars
-	for i in range(startstar, endstar): #range(startstar, Nstars)
+	for i in range(startstar, endstar):
 
 		try:
 			# Get metallicity of star to use for initial guess
@@ -183,10 +157,9 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 					continue
 
 			# Run optimization code
-			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, lines, RA[i], \
+			star = chi_sq.obsSpectrum(filename, paramfilename, i, wvlcorr, galaxyname, slitmaskname, globular, RA[i], \
 			     Dec[i], element, grating, atom_num, linelists, linegaps, elementlines, plot=True, stravinsky=stravinsky, \
 					chisq_weight=chisq_weight, dlamfit=dlamfit, file1200G=file1200G)
-			# best_elem, error, finalchisq = star.plot_chisq(fe, output=True, plots=plots)
 			best_elem, error, finalchisq, dlam = star.plot_chisq([fe], output=True, plots=plots)
 
 		except Exception as e:
@@ -195,8 +168,8 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 			continue
 
 		print('Finished star '+star.specname, '#'+str(i+1)+'/'+str(Nstars)+' stars'+'\n')
-		#print('test', star.specname, RA[i], Dec[i], star.temp, star.logg, star.fe, star.fe_err, star.alpha, best_elem, error, finalchisq)
 
+		# Write output into CSV
 		with open(outputname, 'a') as f:
 			newline = star.specname+'\t'+str(star.starnum)+'\t'+str(RA[i])+'\t'+str(Dec[i])+'\t'+str(star.temp)+'\t'+str(star.logg)+'\t'+\
 				str(star.fe)+'\t'+str(star.fe_err)+'\t'+str(star.alpha)+'\t'+str(star.carbon)+'\t'+str(best_elem[0])+'\t'+str(error)+'\t'+str(finalchisq)+'\t'+str(dlam)
@@ -207,14 +180,13 @@ def run_chisq(filename, paramfilename, galaxyname, slitmaskname, element, gratin
 			for lineused in star.lines_used:
 				newline = newline+'\t'+str(lineused)
 			newline = newline+'\n'
-			# f.write(star.specname+'\t'+str(RA[i])+'\t'+str(Dec[i])+'\t'+str(star.temp)+'\t'+str(star.logg)+'\t'+str(star.fe)+'\t'+str(star.fe_err)+'\t'+str(star.alpha)+'\t'+str(star.carbon)+'\t'+str(best_elem[0])+'\t'+str(error)+'\t'+str(finalchisq)+'\t'+str(dlam)+'\n')
 			f.write(newline)
 
 	return
 
 
 ################################################
-#SHOULD GET THESE WORKING - COULD BE HELPFUL
+# SHOULD GET THESE WORKING - COULD BE HELPFUL
 def make_chisq_plots(filename, paramfilename, outfolder, galaxyname, slitmaskname, element, atom_num, grating, startstar=0, globular=False, stravinsky=False):
 	""" Plot chisq contours for stars whose [X/H] abundances have already been measured.
 
@@ -395,23 +367,21 @@ def plot_fits_postfacto(filename, paramfilename, outfolder, galaxyname, slitmask
 
 	return
 
+#####################################################################################
+
 def main():
 	# for globular clusters
-	run_chisq('/raid/gduggan/2018_Duggan/moogify/6341l1_blue_enk_moogify.fits.gz', '/raid/caltech/moogify/6341l1/moogify7_flexteff.fits.gz', 'n6341', 'l1', 'Ba', '900ZD',\
-	   atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], globular=True, lines='new', plots=True, wvlcorr=True, \
-		stravinsky=True, chisq_weight=True, dlamfit=False)
+	# run_chisq('/raid/gduggan/2018_Duggan/moogify/6341l1_blue_enk_moogify.fits.gz', '/raid/caltech/moogify/6341l1/moogify7_flexteff.fits.gz', 'n6341', 'l1', 'Ba', '900ZD',\
+	#    atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=True, \
+	# 	plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
 	
 	# for dSphs
 	# run_chisq(sys.argv[4], '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8],\
-	#    atom_num=int(sys.argv[9]), startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], globular=False, lines='new', plots=True, wvlcorr=True, \
-	# 	stravinsky=True, chisq_weight=True, dlamfit=False, file1200G=None)
-	# run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'scl', 'bscl1', 'Y', '900ZD',\
-	#    atom_num=39, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], globular=False, lines='new', plots=True, wvlcorr=True, \
-	# 	stravinsky=True, chisq_weight=True, dlamfit=False)
-
-	# run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'scl', 'bscl1', sys.argv[5], '900ZD',\
-	#    atom_num=int(sys.argv[4]), startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], globular=False, lines='new', plots=True, wvlcorr=True, \
-	# 	stravinsky=True, chisq_weight=True, dlamfit=False, file1200G=None)
+	#    atom_num=int(sys.argv[9]), startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', \
+	# 	globular=False, plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False, file1200G=None)
+	run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'scl', 'bscl1', 'Ba', '900ZD',\
+	   atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=False, \
+		plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
 	
 	# make_chisq_plots('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'Y_dlam878','scl', 'bscl1', \
 	# 			  'Y', 39, '900ZD', startstar=0, globular=False, stravinsky=True)

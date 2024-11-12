@@ -27,6 +27,7 @@ def open_obs_file(filename, grating=None, slitmask=None, retrievespec=None, spec
 	filename - name of file to open
 
 	Keywords:
+	grating      - DEIMOS grating (i.e. 1200B, 900ZD); determines dlam
 	retrievespec - if None (default), output number of stars in file; 
 					else, retrieve spectrum of nth star from the file (where n = retrievespec)
 
@@ -287,7 +288,8 @@ def open_obs_file(filename, grating=None, slitmask=None, retrievespec=None, spec
 
 				############# for systematic error testing #################
 				temperr = int(data['TEFFERR'][retrievespec])
-				temp += temperr
+				# temp += temperr
+				print('temp test:', temp, temperr)
 				loggerr = data['LOGGERR'][retrievespec]
 				alphafeerr = data['ALPHAFEERR'][retrievespec]
 				#############################################################

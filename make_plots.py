@@ -18,32 +18,37 @@ import numpy as np
 import math
 
 # Code to make plots
-def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, \
+def make_plots(linelist, linegaps, specname, starnum, obswvl, obsflux, synthflux, outputname, element, skip, resids=True, \
 			   ivar=None, title=None, synthfluxup=None, synthfluxdown=None, synthfluxup02=None, synthfluxdown02=None, synthflux02_above=False, \
 				synthflux_no_elem=None, synthflux_cluster=None, additional_synth=None, add_synth_val=None, savechisq=None, hires=False):
-	"""Make plots.
+	"""
+	Make plots.
 
 	Inputs:
-	lines -- which linelist to use? Options: 'new', 'old'
 	linelist -- list of the synthesized lines of the element of interest
+	linegaps -- list of regions around the synthesized lines
 	specname -- name of star
+	starnum -- star index
 	obswvl 	-- observed wavelength array
 	obsflux -- observed flux
 	synthflux 	-- synthetic flux
 	outputname 	-- where to output file
 	element -- string of element of interest e.g. 'Mn', 'Sr'
+	skip -- which lines of 'linelist' are running
 
 	Keywords:
 	resids  -- plot residuals if 'True' (default); else, don't plot residuals
 	ivar 	-- inverse variance; if 'None' (default), don't plot errorbars
 	title 	-- plot title; if 'None' (default), then plot title = "Star + ID"
-	synthfluxup & synthfluxdown -- if not 'None' (default), then plot synthetic spectrum as region between [X/H]_best +/- 0.3dex
-	synthflux_no_elem	-- if not 'None' (default), then plot synthetic spectrum with [X/H] = -10.0
+	synthfluxup & synthfluxdown -- if not 'None' (default), then plot synthetic spectrum as region between [X/H]_best +/- error
+	synthfluxup02 & synthfluxdown02 -- if not 'None' (default), then plot [X/H]_best +/- 0.2 region
+	synthflux02_above -- whether error is greater than or less than 0.2 (determines if synthflux02 region is in front or back on the plot)
+	synthflux_no_elem	-- if not 'None' (default), then plot synthetic spectrum with [X/H] = -8.0
 	synthflux_cluster 	-- if not 'None' (default), then plot synthetic spectrum with mean [X/H] of cluster; in format synthflux_cluster = [mean [X/H], spectrum]
+	additional_synth -- another synthetic spectrum to plot if you'd like
+	add_synth_val -- abundance value of the extra synth
 	savechisq 	-- if not 'None' (default), compute & save reduced chi-sq for each line in output file with path savechisq
 	hires 	-- if 'False', plot as normal; else, zoom in a bit to show hi-res spectra
-
-	Outputs:
 	"""
 	print('making plots')
 
@@ -53,37 +58,22 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 		for index in skip:
 			if j > linegaps[index][0] and j < linegaps[index][1]:
 				newlinelist.append(j)
-		#newlinelist.append(linelist[j])
-	if lines == 'new':
-		linewidth = np.ones(len(newlinelist)) #sets width of green overlay
-		if element == 'Nd':
-			nrows = 4
-			ncols = int(len(newlinelist)/4)+1
-			figsize = (60,60)
-		else:
-			nrows = 2
-			ncols = int(len(newlinelist)/2) + 1
-			figsize = (32,15)
-			# USE ABOVE USUALLY
-			# nrows = 2
-			# ncols = 1
-			#figsize = (40,15)
-			# figsize = (20,15)
 
-	elif lines == 'old':
-		linelist = np.array([4739.,4783.,4823.,5394.,5432.,5516.,5537.,6013.,6021.,6384.,6491.])
-		linewidth = np.ones(len(linelist))
-
-		nrows = 3
-		ncols = 4
-		figsize = (20,15)
+	linewidth = np.ones(len(newlinelist)) #sets width of green overlay
+	if element == 'Nd': # Nd has so many lines that the figure format needs to change
+		nrows = 4
+		ncols = int(len(newlinelist)/4)+1
+		figsize = (60,60)
+	else:
+		nrows = 2
+		ncols = int(len(newlinelist)/2) + 1
+		figsize = (32,15)
 
 	# Define title
 	if title is None:
 		title = 'Star'+specname+element
 
 	# Plot showing fits
-	#f, axes = plt.subplots(nrows, ncols, sharey='row', num=1, figsize=figsize)
 	plt.figure(num=1, figsize=figsize)
 	plt.title(title)
 
@@ -103,37 +93,20 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 		chisq_up = np.zeros(len(newlinelist))
 		chisq_down = np.zeros(len(newlinelist))
 
-	#print('length synth, obswvl',len(synthfluxup),len(obswvl))
 	for i in range(len(newlinelist)):
-		#f = plt.figure(1)
-		#for i, ax in enumerate(f.axes):
 
 		# Range over which to plot
-		#if hires == False:
 		lolim = newlinelist[i] - 10
 		uplim = newlinelist[i] + 10
-		#print(lolim, uplim)
-		#else:
-		#	lolim = linelist[i] - 5
-		#	uplim = linelist[i] + 5
 
 		# Make mask for wavelength
 		try:
 			mask = np.where((obswvl > lolim) & (obswvl < uplim))
-			# for testing
-			# plt.figure()
-			# plt.plot(obswvl[mask], synthfluxup[mask], 'k-', label='im trying')
-			# plt.plot(obswvl[mask], synthfluxdown[mask], 'r-', label='down')
-			# plt.legend(loc='best')
-			# plt.savefig(outputname+'/'+specname+'_TEST'+str(i)+'.png')
-			# plt.close()
-
 			if len(mask[0]) > 0:
 
 				if ivar is not None:
 					yerr=np.power(ivar[mask],-0.5)
 					yerr = np.float64(yerr)
-					#print(type(yerr[0]))
 				else:
 					yerr=None
 
@@ -155,10 +128,6 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 
 					# Plot synthetic spectrum best fit
 					if (synthfluxup is not None) and (synthfluxdown is not None):
-						# print('type of x and y')
-						# print(type(obswvl[mask][0]))
-						# print(type(synthfluxup[mask][0]))
-						# print(type(synthfluxdown[mask][0]))
 						obswvl = np.float64(obswvl) #so that wvl is the same type as the synth flux
 
 						plt.fill_between(obswvl[mask], synthfluxup[mask], synthfluxdown[mask], facecolor='red', edgecolor='red', alpha=0.75, linewidth=0.5,\
@@ -183,14 +152,8 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 						plt.plot(obswvl[mask], synthflux_cluster[1][mask], color='purple', linestyle='--', linewidth=2, label='<['+element+'/H]>='+str(synthflux_cluster[0]), zorder=2)
 
 					# Plot observed spectrum
-					#if hires == False:
-					#print('obsflux',obsflux[mask])
 					plt.errorbar(obswvl[mask], obsflux[mask], yerr=yerr, color='k', fmt='o', markersize=6, label='Observed', zorder=3)
-					#else:
-					#plt.plot(obswvl[mask], obsflux[mask], 'k-', label='Observed')
 
-					# plt.xticks(fontsize=12)
-					# plt.yticks(fontsize=15)
 					plt.xticks(fontsize=20)
 					plt.yticks(fontsize=20)
 
@@ -237,8 +200,6 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 	fig = plt.figure(1)
 	fig.text(0.5, 0.04, 'Wavelength ('+r'$\AA$'+')', fontsize=28, ha='center', va='center', color='#594F4F') #fontsize=18
 	fig.text(0.06, 0.5, 'Normalized flux', fontsize=28, ha='center', va='center', rotation='vertical', color='#594F4F') #fontsize=18
-	#plt.ylabel('Relative flux')
-	#plt.xlabel('Wavelength (A)')
 
 	plt.savefig(outputname+'/'+specname+element+'finalfits'+str(starnum)+'.png',bbox_inches='tight') #,transparent=True)
 	plt.close(1)
@@ -264,7 +225,5 @@ def make_plots(lines, linelist, linegaps, specname, starnum, obswvl, obsflux, sy
 		with open(savechisq, 'a') as f:
 			for i in range(len(linelist)):
 				f.write(specname[:-1]+'\t'+str(i)+'\t'+str(chisq[i])+'\t'+str(chisq_up[i])+'\t'+str(chisq_down[i])+'\n')
-
-	
 
 	return

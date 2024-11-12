@@ -36,7 +36,7 @@ from make_plots import make_plots
 # Observed spectrum
 class obsSpectrum:
 
-	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, lines, RA, Dec, element, grating,\
+	def __init__(self, obsfilename, paramfilename, starnum, wvlcorr, galaxyname, slitmaskname, globular, RA, Dec, element, grating,\
 	       atom_num, linelists, linegaps, elementlines, obsspecial=None, plot=False, hires=None, smooth=None, specialparams=None, \
 			stravinsky=True, chisq_weight=True, dlamfit=True, file1200G=None):
 
@@ -47,15 +47,14 @@ class obsSpectrum:
 		self.galaxyname 	= galaxyname 	# Name of galaxy
 		self.slitmaskname 	= slitmaskname 	# Name of slitmask
 		self.globular 		= globular		# Parameter marking if globular cluster
-		self.lines 			= lines 		# Parameter marking whether or not to use revised or original linelist
 		self.element        = element       # element you want the abundances of e.g. 'Mn', 'Sr'
 		self.grating        = grating       # grating used for the slitmask (i.e. '1200B'), used to set dlam
 		self.atom_num       = atom_num      # atomic number of the element you want the abundances of
 		self.linelists      = linelists     # list of line list file names for MOOG
 		self.linegaps       = linegaps      # list of spectrum sections that will be synthesized by MOOG
 		self.elementlines   = elementlines  # list of lines from the element of interest that the linegaps are centered on
-		self.stravinsky     = stravinsky    # whether SMAUG is running on Stravinsky (currently must run on Stravinsky as the files are)
-		self.chisq_weight   = chisq_weight     # maximum chisq value allowed for a line section; if None, will not do chisq cut    
+		self.stravinsky     = stravinsky    # whether SMAUG is running on Stravinsky (currently must run on Stravinsky)
+		self.chisq_weight   = chisq_weight  # if 'True' (default), calculate chisq for each line region and cut lines if necessary 
 
 		# If observed spectrum comes from moogify file (default), open observed file and continuum normalize as usual
 		if obsspecial is None:
@@ -74,7 +73,7 @@ class obsSpectrum:
 				open_obs_file(self.obsfilename, grating=self.grating, slitmask=self.slitmaskname, retrievespec=self.starnum)
 
 
-			if file1200G is not None:
+			if file1200G is not None: # then open 1200G file
 				self.specname1200G, self.obswvl1200G, self.obsflux1200G, self.ivar1200G, self.dlam1200G, self.zrest1200G = \
 					open_obs_file(file1200G, grating='1200G', slitmask=self.slitmaskname, retrievespec=self.starnum, objname=self.specname, inputcoords=[RA, Dec])
 				print('1200G wavelength range: ',self.obswvl1200G[0][0], self.obswvl1200G[0][-1])
@@ -114,9 +113,6 @@ class obsSpectrum:
 				else:
 					lum = (4*np.pi*6.6743*(10**(-8))*0.75*1.99*(10**(33))*5.6704*(10**(-5))*self.temp**4)/(10**self.logg)
 					logl = np.log10(lum/(3.846*(10**(33))))
-					#print('luminosity test:')
-					#print('L/Lsun',lum/(3.846*(10**(33))) )
-					#print('logl',logl)
 					if logl <= 1.6:
 						self.carbon = 0.12 #[C/Fe]
 					else:
@@ -124,9 +120,6 @@ class obsSpectrum:
 			else:
 				lum = (4*np.pi*6.6743*(10**(-8))*0.75*1.99*(10**(33))*5.6704*(10**(-5))*self.temp**4)/(10**self.logg)
 				logl = np.log10(lum/(3.846*(10**(33))))
-				#print('luminosity test:')
-				#print('L/Lsun',lum/(3.846*(10**(33))) )
-				#print('logl',logl)
 				if logl <= 1.6:
 					self.carbon = 0.12 #[C/Fe]
 				else:
@@ -137,7 +130,6 @@ class obsSpectrum:
 					
 			print('carbon:', self.carbon)
 
-			#print('got measured parameters')
 			if specialparams is not None:
 				self.temp = specialparams[0]
 				self.logg = specialparams[1]
@@ -158,17 +150,14 @@ class obsSpectrum:
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
 			self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.chipgap = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
 										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha,\
-											dlam=self.dlam, carbon=self.carbon, lines=self.lines, stravinsky=self.stravinsky)
+											dlam=self.dlam, carbon=self.carbon, stravinsky=self.stravinsky)
 			if file1200G is not None:
 				print('masking 1200G for division')
 				self.synthfluxmask1200G, obsfluxmask1200G, obswvlmask1200G, ivarmask1200G, mask1200G, self.chipgap1200G = mask_obs_for_division(self.obswvl1200G, self.obsflux1200G, self.ivar1200G,\
 										   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha,\
-											dlam=self.dlam1200G, carbon=self.carbon, lines=self.lines, stravinsky=self.stravinsky, spec1200G=True)
-
+											dlam=self.dlam1200G, carbon=self.carbon, stravinsky=self.stravinsky, spec1200G=True)
 
 			if plot:
-				# print('obswvl',obswvlmask)
-				# print('synth',self.synthfluxmask)
 				# Plot spliced synthetic spectrum
 				plt.figure()
 				plt.plot(obswvlmask[0], self.synthfluxmask[0], 'b-')
@@ -183,30 +172,17 @@ class obsSpectrum:
 					plt.close()
 
 			# Compute continuum-normalized observed spectrum
-			self.obsflux_norm, self.ivar_norm = divide_spec(self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, \
+			self.obsflux_norm, self.ivar_norm = divide_spec(self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, \
 						   sigmaclip=True, specname=self.specname, outputname=self.outputname)
 			print('normalization done!')
 			if file1200G is not None:
 				print('normalizing 1200G')
-				self.obsflux_norm1200G, self.ivar_norm1200G = divide_spec(self.synthfluxmask1200G, obsfluxmask1200G, obswvlmask1200G, ivarmask1200G, mask1200G, self.element, \
+				self.obsflux_norm1200G, self.ivar_norm1200G = divide_spec(self.synthfluxmask1200G, obsfluxmask1200G, obswvlmask1200G, ivarmask1200G, mask1200G, \
 						   sigmaclip=True, specname=self.specname, outputname=self.outputname)
 
 			# Try to fit dlam if you want
 			if dlamfit:
 				self.dlam = self.Fitdlam()
-
-			# Fit C in more detail by interpolating in gridch and adjusting normalization
-			##### NOT DOING THIS EXTRA STEP################
-			# fit_params = self.CurveFitCarbon()
-			# self.carbon = fit_params[0]
-			# renormalize with the new carbon value
-			# self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.chipgap = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
-			# 							   self.element, self.linegaps,temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha,\
-			# 								dlam=self.dlam, carbon=self.carbon, lines=self.lines, stravinsky=self.stravinsky)
-			# self.obsflux_norm, self.ivar_norm = divide_spec(self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, \
-			# 			   sigmaclip=True, specname=self.specname, outputname=self.outputname)
-			###############################################
-
 
 			if plot:
 				# Plot continuum-normalized observed spectrum
@@ -216,9 +192,6 @@ class obsSpectrum:
 					plt.plot(self.obswvl1200G, self.obsflux_norm1200G, 'g-', alpha=0.7)
 				for line in self.elementlines:
 					plt.axvspan(line-10, line+10, alpha=0.5, color='pink')
-				#what's red and what's blue?
-				#plt.axvspan(4749, 4759, alpha=0.5, color='blue')
-				#plt.axvspan(4335, 4345, alpha=0.5, color='red')
 				plt.ylim((0,5))
 				plt.savefig(self.outputname+'/'+self.specname+self.element+'_obsnormalized'+str(self.starnum)+'.png')
 				plt.close()
@@ -231,16 +204,19 @@ class obsSpectrum:
 				full_synthfluxmask = np.concatenate((self.synthfluxmask[0],self.synthfluxmask[1]))
 				full_ivarmask = np.concatenate((ma.masked_array(np.array(self.ivar_norm)[:self.chipgap],mask[0]), ma.masked_array(np.array(self.ivar_norm)[self.chipgap:], mask[1])))
 
+				########
+				# Plot Na D line
+				# plt.figure()
+				# plt.plot(obswvlmask[0], self.synthfluxmask[0], 'b-')
+				# plt.plot(obswvlmask[1], self.synthfluxmask[1], 'r-')
+				# plt.plot(self.obswvl, self.obsflux_norm, 'k-', alpha=0.7)
+				# plt.xlim((5200,5300))
+				# plt.ylim((0.6,1.1))
+				# plt.savefig(self.outputname+'/'+self.specname+self.element+str(self.starnum)+'_NaDsynth.png')
+				# plt.close()
+				#########
 
-				plt.figure()
-				plt.plot(obswvlmask[0], self.synthfluxmask[0], 'b-')
-				plt.plot(obswvlmask[1], self.synthfluxmask[1], 'r-')
-				plt.plot(self.obswvl, self.obsflux_norm, 'k-', alpha=0.7)
-				plt.xlim((5200,5300))
-				plt.ylim((0.6,1.1))
-				plt.savefig(self.outputname+'/'+self.specname+self.element+str(self.starnum)+'_NaDsynth.png')
-				plt.close()
-
+				# Write model spectra into red and blue files
 				modelfilenameblue = self.outputname+'/'+self.specname+self.element+'_synthblue'+str(self.starnum)+'.csv'
 				# Define columns
 				columnstr = ['wavelength_blue','synth_blue']
@@ -263,6 +239,7 @@ class obsSpectrum:
 					for j in range(len(obswvlmask[1])):
 						datawriter.writerow(columns[:,j])
 
+				############ More plots for testing ###########################
 				# fig, axs = plt.subplots(2,2, figsize=(25,25))
 				# axs[0,0].plot(full_obswvlmask, obsfluxnorm_mask, 'deepskyblue', alpha=0.5, label='obs')
 				# axs[0,0].plot(full_obswvlmask, full_synthfluxmask, 'tomato', alpha=0.5, label='synth')
@@ -292,36 +269,24 @@ class obsSpectrum:
 				# 	plt.xlim(gap)
 				# 	plt.savefig(self.outputname+'/'+self.specname+self.element+'_'+str(gap[0])+'.png')
 				# 	plt.close()
-
+				###############################################################
 
 			if wvlcorr:
 				print('Doing wavelength correction...')
-				# print(self.obsflux_norm)
-				# print(self.obswvl)
-				# print(chipgap)
-
 				try:
-					# Compute standard deviation
-					# contdivstd = np.zeros(len(self.ivar_norm))+np.inf
-					# contdivstd[self.ivar_norm > 0] = np.sqrt(np.reciprocal(self.ivar_norm[self.ivar_norm > 0]))
-
-					# Wavelength correction
-					#self.obswvl = fit_wvl(self.obswvl, self.obsflux_norm, contdivstd, self.dlam, 
-						#self.temp, self.logg, self.fe, self.alpha, self.specname, self.outputname+'/')
-					#self.obswvl = self.fit_wvl2() #my version that totally doesn't work lol
 					self.obswvl = do_wvl_corr(self.obswvl, self.obsflux_norm, self.ivar_norm, self.outputname, self.specname, self.dlam)
-
-
 					print('Done with wavelength correction!')
 
-					plt.figure()
-					plt.plot(obswvlmask[0], self.synthfluxmask[0], 'g-')
-					plt.plot(obswvlmask[1], self.synthfluxmask[1], 'r-')
-					plt.plot(self.obswvl, self.obsflux_norm, 'k-', alpha=0.7)
-					plt.xlim((5200,5300))
-					plt.ylim((0.6,1.1))
-					plt.savefig(self.outputname+'/'+self.specname+self.element+str(self.starnum)+'_NaDsynth_postwvlcorr.png')
-					plt.close()
+					###### Plot Na D line after wavelength correction ################
+					# plt.figure()
+					# plt.plot(obswvlmask[0], self.synthfluxmask[0], 'g-')
+					# plt.plot(obswvlmask[1], self.synthfluxmask[1], 'r-')
+					# plt.plot(self.obswvl, self.obsflux_norm, 'k-', alpha=0.7)
+					# plt.xlim((5200,5300))
+					# plt.ylim((0.6,1.1))
+					# plt.savefig(self.outputname+'/'+self.specname+self.element+str(self.starnum)+'_NaDsynth_postwvlcorr.png')
+					# plt.close()
+					###################################################################
 
 				except Exception as e:
 					print(repr(e))
@@ -329,11 +294,11 @@ class obsSpectrum:
 
 			# Crop observed spectrum into regions around lines
 			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
-															self.ivar_norm, self.dlam, self.synthfluxmask, self.element, self.linegaps, lines=self.lines)
+															self.ivar_norm, self.dlam, self.synthfluxmask, self.element, self.linegaps)
 			# Stack 1200G spectrum onto the end if using
 			if file1200G is not None:
 				self.obsflux_fit1200G, self.obswvl_fit1200G, self.ivar_fit1200G, self.dlam_fit1200G, self.skip1200G = mask_obs_for_abundance(self.obswvl1200G, self.obsflux_norm1200G,\
-												        self.ivar_norm1200G, self.dlam1200G, self.synthfluxmask1200G, self.element, self.linegaps, lines=self.lines)
+												        self.ivar_norm1200G, self.dlam1200G, self.synthfluxmask1200G, self.element, self.linegaps)
 				if self.element == 'Ba':
 					if self.obswvl[-1] > 6497 and self.obswvl1200G[0] < 6497:
 						self.elementlines.append(6496.91)
@@ -347,7 +312,7 @@ class obsSpectrum:
 						index = [self.skip[-1]+1]
 						self.skip = np.hstack((self.skip, index))
 
-				print(self.obsflux_fit.dtype)
+				# print(self.obsflux_fit.dtype)
 				self.obsflux_fit = np.array(self.obsflux_fit.tolist() + [np.asarray(self.obsflux_fit1200G[-1].tolist())], dtype = object)
 				self.obswvl_fit = np.array(self.obswvl_fit.tolist() + [np.asarray(self.obswvl_fit1200G[-1].tolist())], dtype = object)
 				self.ivar_fit = np.array(self.ivar_fit.tolist() + [np.asarray(self.ivar_fit1200G[-1].tolist())], dtype = object)
@@ -386,10 +351,10 @@ class obsSpectrum:
 			# Get synthetic spectrum, split both obs and synth spectra into red and blue parts
 			self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.chipgap = mask_obs_for_division(self.obswvl, self.obsflux, self.ivar,\
 										   self.linegaps, temp=self.temp, logg=self.logg, fe=self.fe, alpha=self.alpha, dlam=self.dlam,\
-											lines=self.lines, hires=True, stravinsky=self.stravinsky)
+											hires=True, stravinsky=self.stravinsky)
 
 			# Compute continuum-normalized observed spectrum
-			self.obsflux_norm, self.ivar_norm = divide_spec(self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, self.element, specname=self.specname, outputname=self.outputname, hires=True)
+			self.obsflux_norm, self.ivar_norm = divide_spec(self.synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, specname=self.specname, outputname=self.outputname, hires=True)
 
 			if smooth is not None:
 
@@ -411,7 +376,7 @@ class obsSpectrum:
 
 			# Crop observed spectrum into regions around element lines
 			self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
-												        self.ivar_norm, self.dlam, self.synthfluxmask, self.element, self.linegaps, lines=self.lines, hires=True)
+												        self.ivar_norm, self.dlam, self.synthfluxmask, self.element, self.linegaps, hires=True)
 
 		# Else, take both spectrum and observed parameters from obsspecial keyword
 		else:
@@ -442,6 +407,9 @@ class obsSpectrum:
 		#print(len(self.obswvl_final))
 
 	def chisqdlam(self, obswvlmask, dlam):
+		"""
+		Get synthetic spectrum with the dlambda guess.
+		"""
 		# Mask out wacky ends of the spectrum
 		mask = np.zeros(len(self.obswvl), dtype=bool)
 		mask[np.where(self.obswvl < 4500)] = True
@@ -460,9 +428,10 @@ class obsSpectrum:
 		return synth #redchisq
 	
 	def Fitdlam(self):
-		'''Use curve_fit to fit dlambda to the normalized spectrum.
+		"""
+		Use curve_fit to fit dlambda to the normalized spectrum.
 		Return dlambda as an array with a value for each observed point.
-		'''
+		"""
 		print('Fitting dlam')
 		mask = np.zeros(len(self.obswvl), dtype=bool)
 		# Fit between 4500 and the chip gap
@@ -484,7 +453,7 @@ class obsSpectrum:
 		dlam_shaped = np.empty(len(self.obsflux_norm))
 		dlam_shaped.fill(new_dlam)
 		
-		# Plot to test
+		############### Plot to test############################
 		# synth = get_synth(self.obswvl, self.obsflux_norm, self.ivar_norm, dlam_shaped, synth=None, temp=self.temp, logg=self.logg, \
 		# 					fe=self.fe, alpha=self.alpha, carbon=self.carbon, stravinsky=self.stravinsky)
 		# plt.figure()
@@ -494,72 +463,14 @@ class obsSpectrum:
 		# plt.ylim([0,3])
 		# plt.savefig(self.outputname+'/'+self.specname+self.element+'_dlamtest.png')
 		# plt.close()
+		########################################################
 
 		return dlam_shaped
 	
-	def CarbonSynth(self, obswvl, carbon, a, b, c):
-		''' Function to curvefit. Interpolates grdich to carbon values
-		and multiplies by a polynomial to correct the flux.
-		fe, alpha, temp, logg are already fixed for the star.
-		Inputs:
-		carbon -- [C/Fe] guess
-		obsflux -- observed flux normalized intially (obsflux_norm)
-		'''
-		#get interpolated synthetic spectrum
-		synthflux_ch = 1. - interpolateAtm(self.temp,self.logg,self.fe,self.alpha,carbon=carbon,griddir='/raid/gridch/bin/',gridch=True,stravinsky=True)
-		synthwvl_ch = np.fromfile('/raid/gridch/bin/lambda.bin')
-		synthwvl_ch  = np.around(synthwvl_ch,2)
-		obsmask = np.where((obswvl > 4100) & (obswvl < 4500))
-		obswvl_cut = obswvl[obsmask]
-		obsflux_cut = self.obsflux_norm[obsmask]
-		ivar_cut = self.ivar_norm[obsmask]
-		dlam_cut = self.dlam[obsmask]
-		
-		#smooth to the proper resolution
-		synthmask = np.where(synthwvl_ch > obswvl_cut[0])
-		synthwvl_ch = synthwvl_ch[synthmask]
-		synthflux_ch = synthflux_ch[synthmask]
-		synthfluxnew = smooth_gauss_wrapper(synthwvl_ch, synthflux_ch, obswvl_cut, dlam_cut)
-		#apply the polynomial - note that now the synthflux follows the same wavelengths as obswvl
-		synthfluxnew = synthfluxnew * (a + b*obswvl + c*(obswvl**2)) #adjust flux normalization of the gridch spectrum
-		# synthfluxnew = synthfluxnew * (a + b*obswvl) #adjust flux normalization of the gridch spectrum
-
-		return synthfluxnew
-
-	def CurveFitCarbon(self):
-		''' Actually perform the curvefitting.
-		Inputs:
-		startcarbon -- [C/Fe] used for inital normalization
-		obsflux -- observed flux normalized (obsflux_norm)
-		'''
-		#cut obsflux, obswvl, dlam, and ivar_final to be 4100-4500A
-		obsmask = np.where((self.obswvl > 4100) & (self.obswvl < 4500))
-		obswvl_cut = self.obswvl[obsmask]
-		obsflux_cut = self.obsflux_norm[obsmask]
-		ivar_cut = self.ivar_norm[obsmask]
-		print('initial [C/Fe] value:',self.carbon)
-
-		#do the curve fitting
-		best_params, covar = scipy.optimize.curve_fit(self.CarbonSynth, obswvl_cut, obsflux_cut, p0=[self.carbon,1,0,0], sigma=np.sqrt(np.float64(np.reciprocal(ivar_cut))))
-		print('carbon curvefit results:',best_params)
-		best_carbonsynth = self.CarbonSynth(obswvl_cut, best_params[0],best_params[1],best_params[2],best_params[3])
-
-		#plot for testing
-		plt.figure()
-		plt.plot(obswvl_cut, obsflux_cut, 'deepskyblue', alpha=0.5, label='observed')
-		plt.plot(obswvl_cut, best_carbonsynth, 'forestgreen', alpha=0.5, label='adjusted synth')
-		plt.xlim([4100,4500])
-		plt.ylim([0.2,1.2])
-		plt.title('gridch interpolation test')
-		plt.legend(loc='best')
-		plt.savefig(self.outputname+'/'+self.specname+str(self.starnum)+'_gridchtest.png')
-		plt.close()
-
-		return best_params
-
 	# Define function to minimize
 	def synthetic(self, obswvl, elem, full=True, doquotientfit=True, coeffs=None, alternate_Fe=None):
-		"""Get synthetic spectrum for fitting.
+		"""
+		Get synthetic spectrum for fitting.
 
 		Inputs:
 		obswvl  -- independent variable (wavelength)
@@ -584,7 +495,7 @@ class obsSpectrum:
 		else:
 			fe = self.fe
 		synth = runMoog(temp=self.temp, logg=self.logg, fe=fe, alpha=self.alpha, carbon=self.carbon, specname=str(self.starnum), slitmask=self.slitmaskname, linelists=self.linelists, skip=self.skip,\
-		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], lines=self.lines, stravinsky=self.stravinsky)
+		   atom_nums=[self.atom_num], elements=[self.element], abunds=[elem], stravinsky=self.stravinsky)
 		# print('got synth!')
 		# Loop over each line
 		synthflux = []
@@ -601,11 +512,13 @@ class obsSpectrum:
 			newsynth = get_synth(self.obswvl_fit[self.skip[i]], self.obsflux_fit[self.skip[i]], self.ivar_fit[self.skip[i]],\
 			 self.dlam_fit[self.skip[i]], synth=synthregion, stravinsky=self.stravinsky)
 
-			# uncomment this if dlam is a fitting parameter
+			############ For dlambda fitting during abundance fit isntead of before #####################
+			# uncomment this if dlam is a fitting parameter to fit simultaneously with element abundance
 			# dlam_fit = np.empty(len(self.obswvl_fit[self.skip[i]]))
 			# dlam_fit.fill(dlam)
 			# newsynth = get_synth(self.obswvl_fit[self.skip[i]], self.obsflux_fit[self.skip[i]], self.ivar_fit[self.skip[i]],\
 			# 			dlam_fit, synth=synthregion, stravinsky=self.stravinsky)
+			#############################################################################################
 			
 			# renormalize each spectrum section
 			if doquotientfit: 
@@ -621,13 +534,11 @@ class obsSpectrum:
 
 			synthflux.append(newsynth)
 
-		# print('Finished smoothing synthetic spectrum!')
-
 		# If necessary, splice everything together
 		if full:
 			synthflux = np.hstack(synthflux[:])
 
-		#for debugging, plot each guess that SMAUG makes
+		##################### For debugging, plot each guess that SMAUG makes #####################
 		# mask = np.where((self.obswvl > 4597) & (self.obswvl < 4618))
 		# figsize = (32,15)
 		# plt.figure(figsize=figsize)
@@ -637,19 +548,21 @@ class obsSpectrum:
 		# plt.ylim(0.75,1.1)
 		# plt.savefig(self.outputname+'/'+self.specname+'_'+str(elem)+'.png')
 		# plt.close()
+		############################################################################################
 
 		return synthflux
 	
 	def line(self,x,A,B):
-		''' for fitting a line to the quotient when getting the synthetic spectrum
-		'''
+		"""
+		for fitting a line to the quotient when getting the synthetic spectrum
+		"""
 		return A*x + B
 	
 	def quotientfit(self,synth, i, coeffs=None):
-		''' fit a line to obs_flux/synth and apply
-		that to the synthetic spectrum
+		""" 
+		fit a line to obs_flux/synth and apply that to the synthetic spectrum
 		i -- index of self.skip that you're fitting
-		'''
+		"""
 		if coeffs is None:
 			quotient = self.obsflux_fit[self.skip[i]]/synth
 			# mask out hbeta
@@ -659,15 +572,14 @@ class obsSpectrum:
 			quotient_hbetamask = np.ma.masked_array(quotient, hbetamask).compressed()
 			ivar_hbetamask = np.ma.masked_array(self.ivar_fit[self.skip[i]], hbetamask).compressed()
 			popt, pcov = scipy.optimize.curve_fit(self.line, obswvl_hbetamask, quotient_hbetamask, p0=[0,1], sigma=np.sqrt(np.float64(np.reciprocal(ivar_hbetamask))))
-			#popt, pcov = scipy.optimize.curve_fit(self.line, np.array(self.obswvl_fit[self.skip[i]],dtype='float64'), np.array(quotient,dtype='float64'), p0=[0,1], sigma=np.sqrt(np.float64(np.reciprocal(self.ivar_fit[self.skip[i]]))))
-			#print('fit to quotient:',popt)
 		else:
 			popt = coeffs
 		newsynth = synth * (popt[0]*np.array(self.obswvl_fit[self.skip[i]],dtype='float64') + popt[1])
 		return newsynth, popt
 
 	def minimize_scipy(self, params0, output=False, plots=False, hires=False):
-		"""Minimize residual using scipy.optimize Levenberg-Marquardt.
+		"""
+		Minimize residual using scipy.optimize Levenberg-Marquardt.
 
 		Inputs:
 		params0  -- initial guesses for parameters:
@@ -686,26 +598,26 @@ class obsSpectrum:
 		# Do minimization
 		print('Starting minimization! Initial guesses: ', params0)
 		self.guesshigh = False
-		#best_fit, covar = scipy.optimize.curve_fit(self.synthetic, self.obswvl_final, self.obsflux_final, p0=[params0,1,0,0], sigma=np.sqrt(np.float64(np.reciprocal(self.ivar_final))), epsfcn=0.01)
 		best_fit, covar = scipy.optimize.curve_fit(self.synthetic, self.obswvl_final, self.obsflux_final, p0=params0, sigma=np.sqrt(np.float64(np.reciprocal(self.ivar_final))), epsfcn=0.01)
-        # PARAMS0 HAD BRACKETS AROUND IT
-		#for some reason sometimes the np.reciprocal function produces floats instead of float64 so needed to add that in...
 		error = np.sqrt(np.diag(covar))[0]
 
 		print('Answer: ', best_fit)
 		print('Error: ', error)
 		best_elem = best_fit[0]
+		##### Uncomment if fitting dlam simultaneously ###########
 		# best_dlam = best_fit[1]
+		##########################################################
 		fe_ratio = best_elem - self.fe
 		print('[X/Fe]:', fe_ratio)
 
-		#PLOTTING TWICE JUST FOR TESTING CHI SQUARE WEIGHT
+		########## Plotting twice to test chisq cutoff ########################################################
 		# finalsynth = self.synthetic(self.obswvl_final, best_elem, full=True)
 		# finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + error, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 		# finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - error, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 		# make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_UNWEIGHTED_', self.obswvl_final, self.obsflux_final, finalsynth,\
 	    #     self.outputname, self.element, self.skip, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, hires=hires)
-		self.chisq_cut = 5.0
+		#######################################################################################################
+		self.chisq_cut = 5.0 # reduced chisq must be greater than this to have that line region cut
 		if self.chisq_weight:
 			#calculate reduced chisquare of each line section, then weight sigma based on that chisq and run curve_fit again
 			finalsynth_split = self.synthetic(self.obswvl_final, best_elem, full=False)
@@ -728,7 +640,6 @@ class obsSpectrum:
 				print('line gap:', self.linegaps[self.skip[i]])
 				print('chisq = ',chisq)
 				self.redchisq_output[self.skip[i]] = chisq
-				# self.weights_output[self.skip[i]] = (1/chisq)
 			
 			# take average of the chsiq
 			redchisq_actual = [redchisq for redchisq in self.redchisq_output if redchisq != 0]
@@ -741,38 +652,12 @@ class obsSpectrum:
 			for chisqval in self.redchisq_output:
 				if (chisqval > (med_redchisq+2*std_redchisq)) and (chisqval > self.chisq_cut):
 					run_again = True
-				# if chisq > self.chisq_cut: # have just an upper limit on redchisq instead of weighting each line
-				# 	run_again = True
-			# 	chisq_shaped.append(np.full(len(self.ivar_fit[self.skip[i]]), chisq))
-			# 	weight_ivar.append((1/chisq)*self.ivar_fit[self.skip[i]])
-			# weight_ivar_final = np.hstack(weight_ivar)
-			# #kl = [(np.sum(self.ivar_final))/(np.sum(weight_ivar[j])) for j in range(len(weight_ivar))] #should the lower sum just be over the one line or over all points?
-			# k = (np.sum(self.ivar_final))/(np.sum(weight_ivar_final)) #actually I think there is just 1 k value, not line-dependent
-			# self.weights_output = self.weights_output*k
-			# k_shaped = np.full(len(self.ivar_final),k)
-			# new_sigma = np.sqrt(np.float64(np.reciprocal(np.array(weight_ivar_final))))/np.sqrt(k_shaped)
-			# new_ivar = np.array(weight_ivar_final)*k
-			# print('Running curve_fit with weighted sigma')
-			# best_fit, covar = scipy.optimize.curve_fit(self.synthetic, self.obswvl_final, self.obsflux_final, p0=[best_elem], sigma=new_sigma, epsfcn=0.01)
-			# error = np.sqrt(np.diag(covar))[0]
-			# print('New answer: ', best_fit)
-			# print('New error: ', error)
-			# best_elem = best_fit[0]
-			# # best_dlam = best_fit[1]
-			# fe_ratio = best_elem - self.fe
-			# print('New [X/Fe]:', fe_ratio)
-			############################################### 
-			### FOR TESTING
-			###############
 			if run_again:
 				if len(self.skip) == 0:
 					raise ValueError('All chisq too high. Skipping #'+str(self.starnum))
-				# self.skip = [self.skip[i] for i in range(len(self.skip)) if self.redchisq_output[i] < self.chisq_cut]
 				self.skip = [self.skip[i] for i in range(len(self.skip)) if ((self.redchisq_output[i] < (med_redchisq+2*std_redchisq)) or (self.redchisq_output[i] < 5))]
 				print('new self.skip based on chi square',self.skip, ' Will run again.')
-				#re-mask the observed spectrum to exclude the right lines
-				# self.obsflux_fit, self.obswvl_fit, self.ivar_fit, self.dlam_fit, self.skip = mask_obs_for_abundance(self.obswvl, self.obsflux_norm,\
-				# 											self.ivar_norm, self.dlam, self.synthfluxmask, self.element, self.linegaps, lines=self.lines, hires=True
+				# re-mask the observed spectrum to exclude the right lines
 				self.obsflux_final = np.hstack((self.obsflux_fit[self.skip]))
 				self.obswvl_final = np.hstack((self.obswvl_fit[self.skip]))
 				self.ivar_final = np.hstack((self.ivar_fit[self.skip]))
@@ -797,14 +682,9 @@ class obsSpectrum:
 				
 		# Do some checks
 		if len(np.atleast_1d(best_elem)) == 1:
-			#finalsynth = self.synthetic(self.obswvl_final, best_elem, best_fit[1], best_fit[2], best_fit[3], full=True)
-			#print('fitting final synth: check if the fits are the same')
 			finalsynth = self.synthetic(self.obswvl_final, best_elem, full=True)
-			#print('should be all the best fits:',self.bestquotientfits)
 		else:
 			finalsynth = self.synthetic(self.obswvl_final, best_elem[0], best_elem[1], full=True)
-
-		
 
 		# Output the final data
 		if output:
@@ -816,29 +696,17 @@ class obsSpectrum:
 					finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - error, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 					finalsynthup02 	= self.synthetic(self.obswvl_final, best_elem + 0.2, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 					finalsynthdown02 = self.synthetic(self.obswvl_final, best_elem - 0.2, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
-
-					#print('got synthup and synthdown')
-					# finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + error, best_fit[1], best_fit[2], best_fit[3], full=True)
-					# finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - error, best_fit[1], best_fit[2], best_fit[3], full=True)
-					# finalsynthup 	= self.synthetic(self.obswvl_final, best_elem + 0.15, full=True) #this is what I've been doing so far
-					# finalsynthdown 	= self.synthetic(self.obswvl_final, best_elem - 0.15, full=True)
-					# finalsynthup 	= self.synthetic(self.obswvl_final, best_elem, full=True)
-					# finalsynthdown 	= self.synthetic(self.obswvl_final, -10, full=True) #basically none
-
 					synthflux_no_elem = self.synthetic(self.obswvl_final, -8.0, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 				else:
 					#finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + error[0], best_elem[1], full=True)
 					#finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - error[0], best_elem[1], full=True)
 					finalsynthup = self.synthetic(self.obswvl_final, best_elem[0] + 0.15, best_elem[1], full=True)
 					finalsynthdown = self.synthetic(self.obswvl_final, best_elem[0] - 0.15, best_elem[1], full=True)
-					
 					synthflux_no_elem = self.synthetic(self.obswvl_final, best_elem - 10, full=True, doquotientfit=False, coeffs=self.bestquotientfits)
 					
-
 				# Create file
 				print('filename:', self.outputname,'/',self.specname,self.element,str(self.starnum),'_data.csv')
 				filename = self.outputname+'/'+self.specname+self.element+str(self.starnum)+'_data.csv'
-				#print('best elem', best_elem)
 
 				# Define columns
 				columnstr = ['wvl','obsflux','synthflux','synthflux_up','synthflux_down','ivar','ivar_weighted']
@@ -866,18 +734,18 @@ class obsSpectrum:
 						synthflux02_above = True
 					else:
 						synthflux02_above = False
-					make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.starnum, self.obswvl_final, self.obsflux_final, finalsynth,\
+					make_plots(self.elementlines, self.linegaps, self.specname+'_', self.starnum, self.obswvl_final, self.obsflux_final, finalsynth,\
 					self.outputname, self.element, self.skip, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, \
 					synthfluxup02=finalsynthup02, synthfluxdown02=finalsynthdown02, synthflux02_above=synthflux02_above, synthflux_no_elem=synthflux_no_elem, hires=hires) #plot with no elem line
 					# make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.starnum, self.obswvl_final, self.obsflux_final, finalsynth,\
 					# self.outputname, self.element, self.skip, ivar=self.ivar_final, synthfluxup=finalsynthup, synthfluxdown=finalsynthdown, \
 					# hires=hires)
 			else:
-				make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.starnum, self.obswvl_final, self.obsflux_final, finalsynth,\
+				make_plots(self.elementlines, self.linegaps, self.specname+'_', self.starnum, self.obswvl_final, self.obsflux_final, finalsynth,\
 					self.outputname, self.element, self.skip, ivar=self.ivar_final)
 
 		elif plots:
-			make_plots(self.lines, self.elementlines, self.linegaps, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
+			make_plots(self.elementlines, self.linegaps, self.specname+'_', self.obswvl_final, self.obsflux_final, finalsynth,\
 	       self.outputname, self.element, self.skip, ivar=self.ivar_final, hires=hires)
 		
 		#print('finalsynth:', finalsynth)
@@ -885,7 +753,8 @@ class obsSpectrum:
 		return best_fit, error, new_sigma
 
 	def plot_chisq(self, params0, minimize=True, output=False, plots=False, save=False):
-		"""Plot chi-sq as a function of [X/H].
+		"""
+		Plot chi-sq as a function of [X/H].
 
 		Inputs:
 		params0 -- initial guesses for parameters:
@@ -907,7 +776,6 @@ class obsSpectrum:
 		else:
 			elem_result = [params0[0]]
 			elem_error  = params0[1]
-		#quotient_coeffs = self.bestquotientfits
 
 		#return (remove comment if creating MOOG output files for testing purposes)
 
@@ -916,22 +784,17 @@ class obsSpectrum:
 		chisq_list = np.zeros(len(elem_list)) #this will be reduced chi sq
 		notredchisq_list = np.zeros(len(elem_list))
 
-		#If [X/H] error is small enough, make reduced chi-sq plots
+		# If [X/H] error is small enough, make reduced chi-sq plots
 		if elem_error < 1.0:
 			for i in range(len(elem_list)):
 				#print('redchisq test',self.obswvl_final)
-				# finalsynth = self.synthetic(self.obswvl_final, elem_list[i], elem_result[1], elem_result[2], elem_result[3]) #, dlam)
-				#finalsynth = self.synthetic(self.obswvl_final, elem_list[i], doquotientfit=False, coeffs=self.bestquotientfits) #, dlam)
 				finalsynth = self.synthetic(self.obswvl_final, elem_list[i])
 				chisq = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * (np.power(np.reciprocal(new_sigma), 2.))) / (len(self.obsflux_final) - 1.)
-
-				# chisq = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * self.ivar_final) / (len(self.obsflux_final) - 1.)
 				chisq_list[i] = chisq
 				notredchisq = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * (np.power(np.reciprocal(new_sigma), 2.)))
 				notredchisq_list[i] = notredchisq
 
 			# Create file to output chisq calculation
-
 			chisqfilename = self.outputname+'/'+self.specname+self.element+'_chisq'+str(self.starnum)+'.csv'
 			# Define columns
 			columnstr = ['['+self.element+'/H] guess','red chisq','chisq']
@@ -948,6 +811,7 @@ class obsSpectrum:
 				for j in range(len(elem_list)):
 					datawriter.writerow(columns[:,j])
 
+			# Plot chisq curve
 			plt.figure()
 			plt.title('Star '+self.specname+' '+self.element, fontsize=18)
 			plt.plot(elem_list, chisq_list, '-o')
@@ -959,8 +823,6 @@ class obsSpectrum:
 			if save:
 				np.savetxt(self.outputname+'/'+self.specname+'_redchisq'+str(self.starnum)+'.txt',np.asarray((elem_list - self.fe, chisq_list)).T,header="["+self.element+"/Fe], redchisq")
 		else:
-			# finalsynth = self.synthetic(self.obswvl_final, elem_list[6], elem_result[1], elem_result[2], elem_result[3]) #, dlam)
-			#finalsynth = self.synthetic(self.obswvl_final, elem_list[6], doquotientfit=False, coeffs=self.bestquotientfits) #, dlam)
 			finalsynth = self.synthetic(self.obswvl_final, elem_list[6])
 			chisq_list[6] = np.sum(np.power(self.obsflux_final - finalsynth, 2.) * self.ivar_final) / (len(self.obsflux_final) - 1.)
 
@@ -1005,7 +867,7 @@ def main():
 	#test = obsSpectrum(filename, 57).plot_chisq(-2.1661300692266998)
 
 	# Get data for single star in Scl
-	obsSpectrum('/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', '/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', 66, False, 'scl', 'bscl5_1200B', False, 'new', plot=True).minimize_scipy(-1.8616617309640884, output=True)
+	obsSpectrum('/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', '/raid/caltech/moogify/bscl5_1200B/moogify.fits.gz', 66, False, 'scl', 'bscl5_1200B', False, plot=True).minimize_scipy(-1.8616617309640884, output=True)
 
 if __name__ == "__main__":
 	main()

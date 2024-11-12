@@ -50,6 +50,8 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 		    fe 	  -- [Fe/H]
 		    alpha -- [alpha/Fe]
 		    carbon -- [C/Fe]
+	stravinsky -- whether running on stravinsky or not
+	smoothed -- when True (default), smooth the synthetic spectrum to dlam
 
     Outputs:
     synthflux -- synthetic flux array
@@ -64,9 +66,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 		# Get synthetic spectrum for G band (4100-4500), specifying [C/Fe]
 		if stravinsky:
 			synthflux_ch = 1. - interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/raid/gridch/bin/',gridch=True,stravinsky=stravinsky)
-			#print('ch flux!', synthflux_ch[0:5])
 			synthwvl_ch = np.fromfile('/raid/gridch/bin/lambda.bin')
-			#print('getting synth with carbon=',carbon)
 		else:
 			synthflux_ch = 1. - interpolateAtm(temp,logg,fe,alpha,carbon=carbon,griddir='/mnt/c/SpectraGrids/gridch/bin/',gridch=True,stravinsky=stravinsky) #this won't work because I don't have this grid on my computer
 		synthwvl_ch  = np.around(synthwvl_ch,2)
@@ -76,12 +76,11 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 			synthflux_blue = 1. - interpolateAtm(temp,logg,fe,alpha,griddir='/raid/gridie/bin/', stravinsky=stravinsky)
 		else:
 			synthflux_blue = 1. - interpolateAtm(temp,logg,fe,alpha,griddir='/mnt/c/SpectraGrids/gridie/bin/', stravinsky=stravinsky)
-		wvl_range_blue = np.arange(4100., 6300.+0.14, 0.14) #THIS WILL NEED TO CHANGE WHEN WVL RANGE EXPANDS?
+		wvl_range_blue = np.arange(4100., 6300.+0.14, 0.14) # can change this if wavelength range changes
 		synthwvl_blue  = 0.5*(wvl_range_blue[1:] + wvl_range_blue[:-1])
 		iblue = np.where(synthwvl_blue >= 4500)[0]
 		synthflux_blue = synthflux_blue[iblue] # cut blue spectrum to not overlap with gridch synth
 		synthwvl_blue = synthwvl_blue[iblue]
-		#print('bluest gridie after cut:',synthwvl_blue[0])
 
 		# Also get synthetic spectrum for redder part from Evan's grid
 		if stravinsky:
@@ -94,13 +93,10 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 		ired = np.where(synthwvl_red >= 6300)[0]
 		synthflux_red = synthflux_red[ired] # cut red spectrum to not overlap with gridie synth
 		synthwvl_red = synthwvl_red[ired]
-		# print('grid7 wvl range (red):',synthwvl_red[0],synthwvl_red[-1])
 
 		# Splice blue + red parts together
 		synthflux = np.hstack((synthflux_ch, synthflux_blue, synthflux_red))
 		synthwvl  = np.hstack((synthwvl_ch, synthwvl_blue, synthwvl_red))
-		# print(' synthwvl range without mask:',synthwvl[0],synthwvl[-1])
-		#print('TEST:',synthwvl[0],obswvl[0])
 
 	# Else, use input synthetic spectrum
 	else:
@@ -111,7 +107,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 	mask = np.where((synthwvl > obswvl[0]) & (synthwvl < obswvl[-1]))
 	synthwvl = synthwvl[mask]
 	synthflux = synthflux[mask]
-	# print(' synthwvl range WITH mask:',synthwvl[0],synthwvl[-1])
+	# print(' synthwvl range with mask:',synthwvl[0],synthwvl[-1])
 
 	# Interpolate and smooth the synthetic spectrum onto the observed wavelength array
 	if smoothed:
@@ -120,19 +116,7 @@ def get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=None, logg=None, fe=
 	else:
 		return synthflux
 
-	# # For testing purposes
-	# '''
-	# plt.figure()
-	# plt.plot(synthwvl, synthflux, 'k-', label='Synthetic')
-	# plt.plot(obswvl, synthfluxnew, 'r-', label='Synthetic (smoothed)')
-	# #plt.xlim(5000, 5250)
-	# #plt.ylim(0.9,1.0)
-	# plt.legend(loc='best')
-	# plt.savefig('synth_cont.png')
-	# #plt.show()
-	# '''
-
-def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, logg=None, fe=None, alpha=None, dlam=None, carbon=None, lines='new', hires=False, stravinsky=False, spec1200G=False):
+def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, logg=None, fe=None, alpha=None, dlam=None, carbon=None, hires=False, stravinsky=False, spec1200G=False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out desired element lines for continuum division.
 	Split spectra into red and blue parts.
@@ -143,6 +127,7 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
     obsflux -- flux array of observed spectrum
     ivar 	-- inverse variance array of observed spectrum
     element -- element you want the abundances of e.g. 'Sr', 'Mn'
+	linegaps -- wavelength regions that will be synthesized to measure the abundance you want
 
     Keywords:
     For synthetic spectrum -- 
@@ -150,11 +135,12 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
     logg  -- surface gravity
     fe 	  -- [Fe/H]
     alpha -- [alpha/Fe]
-
     dlam  -- FWHM of observed spectrum
+	carbon -- [C/Fe]
 
-    lines -- if 'new', use new revised linelist; else, use original linelist from Judy's code
     hires -- if 'True', don't mask chipgap
+	stravinsky -- whether running on stravinsky or not for file paths
+	spec1200G -- whether you're adding a 1200G spectrum as well
 
     Outputs:
     synthfluxmask -- (masked!) synthetic flux array
@@ -164,12 +150,9 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
     mask 	      -- mask to avoid bad shit (chip gaps, bad pixels, Na D lines)
     """
 
-	# print('masking obs for division')
-
 	# Get smoothed synthetic spectrum and (NOT continuum-normalized) observed spectrum
 	synthflux = get_synth(obswvl, obsflux, ivar, dlam, synth=None, temp=temp, logg=logg, fe=fe, alpha=alpha, carbon=carbon, stravinsky=stravinsky)
 	print('got synth')
-	# print(len(synthflux))
 
 	# Make a mask
 	mask = np.zeros(len(synthflux), dtype=bool)
@@ -192,18 +175,17 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 	mask[np.where((obswvl > 6563 - 5) & (obswvl < 6563 + 5))] = True #Halpha
 
 	if hires==False:
-		# Mask out pixels near chip gap
+		# Find chipgap
 		chipgap = int(len(mask)/2 - 1)
 		print('wavelength of chip gap: ', obswvl[chipgap])
-		#print('Chip gap: ', chipgap)
 		#mask[(chipgap - 10): (chipgap + 10)] = True
 		#mask[np.where((obswvl > (obswvl[chipgap] - 20)) & (obswvl < (obswvl[chipgap] + 20)))] = True
-		#print(obsflux[chipgap-30:chipgap+30])
+		# Mask out pixels near chip gap
 		chipstart = 0
 		for i in range(chipgap-50,chipgap+50):
 			if abs(obsflux[i]-obsflux[i+1]) > 400: #if flux jumps a large amount near the chip gap it's probably where it starts going weird
 				chipstart = i
-				chipend = (chipgap - chipstart) +chipgap+1 #symmetrical around the chipgap?
+				chipend = (chipgap - chipstart) +chipgap+1 #symmetrical around the chipgap
 				break
 		if chipstart == 0:
 			mask[np.where((obswvl > (obswvl[chipgap] - 20)) & (obswvl < (obswvl[chipgap] + 20)))] = True
@@ -212,10 +194,8 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 
 	# Mask out any bad pixels
 	mask[np.where(synthflux <= 0.)] = True
-	# print('Where synthflux < 0: ', obswvl[np.where(synthflux <=0.)])
 
 	mask[np.where(ivar <= 0.)] = True
-	# print('Where ivar < 0: ', obswvl[np.where(ivar <=0.)])
 
 	# Mask out pixels around Na D doublet (5890, 5896 A)
 	mask[np.where((obswvl > 5884.) & (obswvl < 5904.))] = True
@@ -224,20 +204,9 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 	elemmask = np.zeros(len(synthflux), dtype=bool)
 
 	# For med-res spectra, mask out pixels in regions around desired element lines
-	if hires==False:
-		if lines == 'old':
-			lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
-		elif lines=='new':
-			#with resonance lines: lines = np.array([[4729.,4793.],[4813.,4833.],[5384.,5442.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
-			#+/- 10A regions around Mn lines: lines = np.array([[4729.,4793.],[4813.,4833.],[5400.,5430.],[5506.,5547.],[6003.,6031.],[6374.,6394.],[6481.,6501.]])
-			#+/- 5A regions around Mn lines: lines = np.array([[4734.1,4744.1],[4749.0,4770.8],[4778.4,4788.4],[4818.5,4828.5],[5402.3,5412.3],[5415.3,5425.3],[5511.8,5521.8],[5532.7,5542.7],[6008.3,6026.8],[6379.7,6389.7],[6486.7,6496.7]])
-			#+/- 1A regions around Mn lines:
-			lines = np.array(linegaps)
+	lines = np.array(linegaps)
 
-	# For hi-res spectra, mask out pixels in +/- 1A regions around Mn lines
-	else:
-		lines = np.array([[4738.1,4740.1],[4753.,4755.],[4760.5,4763.3],[4764.8,4767.8],[4782.4,4784.4],[4822.5,4824.5]])
-						#,[5402.,5412.],[5415.,5425.],[5511.,5521.],[5532.,5542.],[6008.,6026.],[6379.,6389.],[6486.,6596.]])
+	# For hi-res spectra, mask out pixels in +/- 1A regions around the element lines. This is not built in yet.
 
 	for line in range(len(lines)):
 		elemmask[np.where((obswvl > lines[line][0]) & (obswvl < lines[line][1]))] = True
@@ -248,7 +217,6 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 	obsfluxmask   	= ma.masked_array(obsflux, mask)
 	obswvlmask	  	= ma.masked_array(obswvl, mask)
 	ivarmask	  	= ma.masked_array(ivar, mask)
-	# print('test:', obsfluxmask[chipgap-30:chipgap+30])
 
 	# Split spectra into blue (index 0) and red (index 1) parts
 	if hires==False:
@@ -257,11 +225,10 @@ def mask_obs_for_division(obswvl, obsflux, ivar, element, linegaps, temp=None, l
 		obswvlmask 		= [obswvlmask[:chipgap], obswvlmask[chipgap:]]
 		ivarmask 		= [ivarmask[:chipgap], ivarmask[chipgap:]]
 		mask 			= [mask[:chipgap], mask[chipgap:]]
-	# print('finished masking obs for division')
 
 	return synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, chipgap
 
-def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element, sigmaclip=False, specname=None, outputname=None, hires=False):
+def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, sigmaclip=False, specname=None, outputname=None, hires=False):
 	"""Do the actual continuum fitting:
 	- Divide obs/synth.
 	- Fit spline to quotient. 
@@ -368,8 +335,6 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 		else:
 			breakpoints_old	= calc_breakpoints_pixels(obswvlmask[ipart].compressed(), 300.) # Use 300 pixel spacing
 
-		#print(obswvlmask[ipart].compressed())
-		#print('breakpoints: ', breakpoints_old)
 		# count how many data points are between each knot, including those at the ends
 		n_inknots = []
 		counter = 0
@@ -388,15 +353,8 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 			if wvl2 > breakpoints_old[-1]:
 				counter += 1
 		n_inknots.append(counter)
-		#print('number of points between knots:',n_inknots)
-		# Noticed for stars 3 and 7 that were not running after increasing the mask bounds that the last knot had
-		# no data points between it and the end. When removed, the code could run but there appears to be too much noise/too little Sr
-		# to produce a reasonable result and the code gives up after a couple abundance guesses.
 
-		#print(quotient[ipart].compressed())
-		#print('first obswvlmask entry',obswvlmask[ipart].compressed()[0])
-		#print('last obswvlmask entry',obswvlmask[ipart].compressed()[-1])
-		if breakpoints_old[-1]==obswvlmask[ipart].compressed()[-1]: #so that each knot, t, has data points in between IS THIS OK TO DO?
+		if breakpoints_old[-1]==obswvlmask[ipart].compressed()[-1]: #so that each knot, t, has data points in between
 			breakpoints_old.pop(-1)
 			print('had to get rid of last knot')
 		def is_sorted(array):
@@ -405,11 +363,8 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 					return False
 			return True
 		# print('is x sorted?',is_sorted(obswvlmask[ipart].compressed())) # x must be sorted for interpolation to work
-		# print(obswvlmask[ipart].compressed())
-		# print(len(obswvlmask[ipart].compressed()), len(quotient[ipart].compressed()))
 		splinerep_old 	= splrep(obswvlmask[ipart].compressed(), quotient[ipart].compressed(), w=newivarmask.compressed(), t=breakpoints_old)
 		continuum_old	= splev(obswvlmask[ipart].compressed(), splinerep_old)
-		# print('did interpolation')
 
 		# Iterate the fit, sigma-clipping until it converges or max number of iterations is reached
 		if sigmaclip:
@@ -430,17 +385,12 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 				# Recalculate the fit after sigma-clipping
 				# print('is x sorted?',is_sorted((obswvlmask[ipart].compressed())[clipmask]))
 				breakpoints_new = calc_breakpoints_pixels((obswvlmask[ipart].compressed())[clipmask], 300.)
-				# print('calculated break points')
-				# print((obswvlmask[ipart].compressed())[clipmask], (quotient[ipart].compressed())[clipmask], (newivarmask.compressed())[clipmask])
-				# print(len((obswvlmask[ipart].compressed())[clipmask]),len((quotient[ipart].compressed())[clipmask]),len((newivarmask.compressed())[clipmask]))
-				# print(type((obswvlmask[ipart].compressed())[clipmask][0]), type(breakpoints_new[0]))
-				# print((obswvlmask[ipart].compressed())[clipmask][0],(obswvlmask[ipart].compressed())[clipmask][-1])
-				# print(breakpoints_new)
+
+				# If the last breakpoint is too close to the end, the run will fail. Move it slightly to avoid the issue.
 				if np.abs((obswvlmask[ipart].compressed())[clipmask][-1] - breakpoints_new[-1]) < 0.0001:
 					breakpoints_new[-1] = breakpoints_new[-1]-0.0001
 				splinerep_new 	= splrep((obswvlmask[ipart].compressed())[clipmask], (quotient[ipart].compressed())[clipmask], w=(newivarmask.compressed())[clipmask], t=breakpoints_new)
 				continuum_new 	= splev(obswvlmask[ipart].compressed(), splinerep_new)
-				# print('did these other interpolations too')
 
 				# For testing purposes
 				'''
@@ -543,7 +493,7 @@ def divide_spec(synthfluxmask, obsfluxmask, obswvlmask, ivarmask, mask, element,
 
 	return obsflux_norm_final, ivar_norm_final
 
-def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, element, linegaps, lines = 'new', hires = False):
+def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, element, linegaps, hires = False):
 	"""Make a mask for synthetic and observed spectra.
 	Mask out bad stuff + EVERYTHING BUT desired element lines (for actual abundance measurements)
 
@@ -560,7 +510,6 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, ele
     synthflux -- flux array of synthetic spectrum
 
     Keywords:
-    lines -- if 'new', use new revised linelist; else, use original linelist from Judy's code
     hires -- if 'True', don't mask chipgap
 
     Outputs:
@@ -598,10 +547,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, ele
 	masklist 	= [obsfluxmask, obswvlmask, ivarmask, dlammask]
 	arraylist 	= [obsflux_norm, obswvl, ivar_norm, dlam]
 
-	if lines == 'old':
-		lines  = np.array([[4744.,4772.],[4773.,4793.],[4813.,4833.],[5384,5404.],[5527.,5547.],[6003.,6031.]])
-	elif lines == 'new':
-		lines = np.array(linegaps)
+	lines = np.array(linegaps)
 
 	for i in range(len(masklist)):
 		for line in range(len(lines)):
@@ -642,12 +588,7 @@ def mask_obs_for_abundance(obswvl, obsflux_norm, ivar_norm, dlam, synthflux, ele
 			if lines[line][1] < red_cutoff:
 				continue
 			else:
-				skip = np.delete(skip, np.where(skip==line))
-		# if lines[line][0] > blue_cutoff and lines[line][1] < red_cutoff:
-		# 	continue
-		# else:
-		# 	skip = np.delete(skip, np.where(skip==line))			
-					
+				skip = np.delete(skip, np.where(skip==line))								
 
 		# 	badspots_red = np.where(self.obsflux_norm[-2000:-1] < 0)
 		# 	red_cutoff = self.obswvl[badspots_red][-1]

@@ -16,7 +16,8 @@ class element:
         self.Nr = []
 
 def isotope_ratio(atom_num, stravinsky=False):
-    '''given an element and the fraction of that element created
+    '''
+    given an element and the fraction of that element created
     by the s-process, return a list of what fraction of that element is 
     each isotope
     star_sfrac = between 0 and 1
@@ -53,12 +54,12 @@ def isotope_ratio(atom_num, stravinsky=False):
     #iso_reciprocal = 1/np.array(isotope_fracs)
     #print('reciprocals:', iso_reciprocal)
     #print('check:', np.sum(np.array(isotope_fracs)))
-
     
     return iso_reciprocal, moog_isotopes
 
 def readTable(stravinsky=False):
-    ''' read in table 1 from Sneden+ 2008
+    '''
+    read in table 1 from Sneden+ 2008
     '''
     if stravinsky:
         tablepath = '/home/lhender6/Research/SMAUG/isotope_table.txt'
@@ -90,7 +91,8 @@ def readTable(stravinsky=False):
     return objs, Z_list
 
 def read_file(filepath, header=False):
-    '''Read data from file line by line.
+    '''
+    Read data from file line by line.
     
     header: if header is true delete the first line of data
     '''
