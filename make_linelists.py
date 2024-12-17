@@ -79,7 +79,7 @@ def split_list(full_list, atom_num, element, stravinsky=False):
     else:
         filepath = '/mnt/c/Research/SMAUG/full_linelists/'
     full_lines = read_file(full_list)
-    ref_lines = read_file(filepath+'Ji20_linelist.moog', header=True)
+    ref_lines = read_file(filepath+'Ji20_linelist_noNa5889Na5895.moog', header=True) # don't include Na D because it has ISM resonance
     #get reference lines only for element of interest
     keep_lines = [rows for rows in ref_lines if int(float(rows[15:20].strip()))==atom_num]
     if atom_num == 12: #need to add third Mg triplet line
@@ -227,11 +227,6 @@ def read_linemake(file, atom):
     print(newlinemakelines)
 
 if __name__ == "__main__":
-    #Sr:38, Mn:25
-    #combine_lines([38,39,40,56,57,58,60,63], 'sprocess')
-    # linelists, linegaps, elementlines = split_list('/mnt/c/Research/SMAUG/full_linelists/full_linemake_nostrong.txt', 12, 'Mg')
-    # print(linegaps)
-    # print(elementlines)
     filepath = '/mnt/c/Research/SMAUG/full_linelists/'
     linemake_file = filepath+'full_linemake.txt'
     read_linemake(linemake_file, 63)

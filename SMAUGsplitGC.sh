@@ -1,7 +1,6 @@
 sockets=0
 socketlimit=20
-# moogify='/raid/caltech/moogify/6341l1/moogify7_flexteff.fits.gz'
-moogify='/raid/gduggan/2018_Duggan/moogify/6341l1_blue_enk_moogify.fits.gz'
+moogify='/raid/caltech/moogify/7078l1B/moogify7_flexteff.fits.gz'
 Nstars=`python3 fitlength.py $moogify`
 echo $Nstars
 limit=20

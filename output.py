@@ -371,17 +371,17 @@ def plot_fits_postfacto(filename, paramfilename, outfolder, galaxyname, slitmask
 
 def main():
 	# for globular clusters
-	# run_chisq('/raid/gduggan/2018_Duggan/moogify/6341l1_blue_enk_moogify.fits.gz', '/raid/caltech/moogify/6341l1/moogify7_flexteff.fits.gz', 'n6341', 'l1', 'Ba', '900ZD',\
-	#    atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=True, \
-	# 	plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
+	run_chisq('/raid/caltech/moogify/7078l1_1200B/moogify.fits.gz', '/raid/caltech/moogify/7078l1B/moogify7_flexteff.fits.gz', 'n7078', 'l1_1200B', 'Na', '1200B',\
+	   atom_num=11, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=True, \
+		plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
 	
 	# for dSphs
 	# run_chisq(sys.argv[4], '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8],\
 	#    atom_num=int(sys.argv[9]), startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', \
 	# 	globular=False, plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False, file1200G=None)
-	run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'scl', 'bscl1', 'Ba', '900ZD',\
-	   atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=False, \
-		plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
+	# run_chisq('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'scl', 'bscl1', 'Ba', '900ZD',\
+	#    atom_num=56, startstar=int(sys.argv[1]), endstar=int(sys.argv[2]), csvend=sys.argv[3], masterlinelist = 'full_linemake_nostrong.txt', globular=False, \
+	# 	plots=True, wvlcorr=True, stravinsky=True, chisq_weight=True, dlamfit=False)
 	
 	# make_chisq_plots('/home/lhender6/Research/Spectra/bscl1/moogify.fits.gz', '/home/lhender6/Research/Spectra/alldsph_moogify.fits.gz', 'Y_dlam878','scl', 'bscl1', \
 	# 			  'Y', 39, '900ZD', startstar=0, globular=False, stravinsky=True)
