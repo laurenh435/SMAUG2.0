@@ -58,17 +58,17 @@ Optional: Depending on the line list, may want to change which isotope ratios ar
    s-process runs, Ba, Nd, Eu, CH, and CN are specified. This can be changed in the createPar function in run_moog.py
 
 SMAUG2.0 proceeds roughly as follows:
-0. Getting started.
+1. Getting started.
    * Make linelists for 20 angstrom regions around each line of the element of interest (make_linelists.py)
-1. Prepare the spectrum.
+2. Prepare the spectrum.
    * Open the spectrum files and extract stellar parameters (math_spectrum.py)
    * Continuum-normalize the spectrum (continuum_div.py)
    * Perform wavelength correction (wvl_corr_even_newer.py)
    * Mask the observed spectrum to only contain small (20 A) regions around the lines of interest (continuum_div.py)
-2. Fit the abundance of the element of interest by creating synthetic spectra with MOOG and comparing them to the observed spectrum.
+3. Fit the abundance of the element of interest by creating synthetic spectra with MOOG and comparing them to the observed spectrum.
    * Create synthetic spectra (interp_atmosphere.py and run_moog.py)
    * Fit the observed spectrum with the synthetic spectrum in each of the line regions simultaneously (chi_sq.py)
-3. Make some plots (make_plots.py)
+4. Make some plots (make_plots.py)
 
 <!-- CONTACT -->
 ## Contact
