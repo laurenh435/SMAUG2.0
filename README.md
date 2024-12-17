@@ -61,7 +61,7 @@ SMAUG2.0 proceeds roughly as follows:
 1. Getting started.
    * Make linelists for 20 angstrom regions around each line of the element of interest (make_linelists.py)
 2. Prepare the spectrum.
-   * Open the spectrum files and extract stellar parameters (math_spectrum.py)
+   * Open the spectrum files and extract stellar parameters (match_spectrum.py)
    * Continuum-normalize the spectrum (continuum_div.py)
    * Perform wavelength correction (wvl_corr_even_newer.py)
    * Mask the observed spectrum to only contain small (20 A) regions around the lines of interest (continuum_div.py)
@@ -81,4 +81,5 @@ Project Link: [https://github.com/laurenh435/SMAUG2.0](https://github.com/lauren
 ## Acknowledgments
 
 [SMAUG](https://github.com/mdlreyes/SMAUG)
+
 [README.md template](https://github.com/othneildrew/Best-README-Template)
